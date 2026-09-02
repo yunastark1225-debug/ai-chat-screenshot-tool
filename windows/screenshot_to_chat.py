@@ -102,7 +102,7 @@ def main() -> int:
             log("Chrome window was not found. Screenshot remains in clipboard.")
             return 1
 
-        log(f"Chrome target: {target_window.title}")
+        log("Chrome window found.")
 
         if target_window.isMinimized:
             target_window.restore()
