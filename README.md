@@ -65,6 +65,12 @@ The macOS version uses the built-in `screencapture` command through AppleScript.
 
 Screen Recording and Accessibility permissions may be required for Shortcuts and/or Stream Deck.
 
+## Limitations
+
+- On Windows, if the currently active window is not Chrome, the tool may fall back to another open Chrome window.
+- On macOS, paste targeting depends on the configured click position and the current Chrome window layout.
+- Confirm the intended chat input is targeted before sending or submitting a pasted screenshot, especially when sensitive information may be visible on the captured display.
+
 ## Status
 
 Windows and macOS versions have both been tested in their respective environments.
