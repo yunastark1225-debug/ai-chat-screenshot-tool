@@ -1,0 +1,5 @@
+mss
+PyGetWindow
+PyAutoGUI
+Pillow
+pywin32
