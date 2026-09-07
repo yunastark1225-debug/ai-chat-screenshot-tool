@@ -42,7 +42,7 @@ See the platform-specific documentation for installation and configuration:
 1. Run the launcher for the target display.
 2. Capture the display directly to the clipboard.
 3. Bring Google Chrome to the foreground.
-4. Paste the screenshot with `Ctrl+V` on Windows or `Cmd+V` on macOS.
+4. Paste the screenshot with `Ctrl+V` on Windows or `Cmd+V` on macOS. By default, the macOS version pastes into the currently focused input without clicking.
 
 ## Stream Deck workflow
 
@@ -61,14 +61,14 @@ The Windows version uses Python to capture the selected monitor and place the im
 
 ### macOS
 
-The macOS version uses the built-in `screencapture` command through AppleScript. It activates Google Chrome, clicks a configurable position near the chat input area, and pastes the image.
+The macOS version uses the built-in `screencapture` command through AppleScript. By default, it activates Google Chrome and pastes the image with `Cmd+V` into the currently focused input without clicking. Set `SKIP_CLICK` to `false` to enable the configurable click-position mode before pasting.
 
 Screen Recording and Accessibility permissions may be required for Shortcuts and/or Stream Deck.
 
 ## Limitations
 
 - On Windows, if the currently active window is not Chrome, the tool may fall back to another open Chrome window.
-- On macOS, paste targeting depends on the configured click position and the current Chrome window layout.
+- On macOS, paste targeting depends on the configured click position and the current Chrome window layout only when `SKIP_CLICK` is `false`.
 - Confirm the intended chat input is targeted before sending or submitting a pasted screenshot, especially when sensitive information may be visible on the captured display.
 
 ## Status
