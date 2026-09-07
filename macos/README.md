@@ -6,7 +6,7 @@ macOS implementation using Shortcuts + AppleScript.
 
 1. Captures a predefined display directly to the clipboard.
 2. Activates Google Chrome.
-3. Clicks near the chat input area.
+3. Optionally clicks near the chat input area.
 4. Pastes the screenshot with Cmd+V.
 
 No screenshot image is saved to disk.
@@ -33,6 +33,11 @@ Depending on the launch method, grant Screen Recording and Accessibility permiss
 ## Adjustable values
 
 ```applescript
+set SKIP_CLICK to true
 set CLICK_X_RATIO to 0.7
 set CLICK_FROM_BOTTOM_PX to 120
 ```
+
+- `SKIP_CLICK`: When `true` (default), skips clicking and pastes into the currently focused Chrome input. Set it to `false` to use the click position below.
+- `CLICK_X_RATIO`: Horizontal click position within the Chrome window when `SKIP_CLICK` is `false`.
+- `CLICK_FROM_BOTTOM_PX`: Vertical click offset from the bottom of the Chrome window when `SKIP_CLICK` is `false`.

@@ -23,12 +23,16 @@ from PIL import Image
 
 
 LOG_FILE = Path(__file__).with_name("screenshot_tool.log")
+LOG_OLD_FILE = LOG_FILE.with_suffix(".old")
+MAX_LOG_BYTES = 1024 * 1024
 
 
 def log(message: str) -> None:
     text = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {message}"
     print(text)
     try:
+        if LOG_FILE.exists() and LOG_FILE.stat().st_size >= MAX_LOG_BYTES:
+            LOG_FILE.replace(LOG_OLD_FILE)
         with LOG_FILE.open("a", encoding="utf-8") as f:
             f.write(text + "\n")
     except Exception:
@@ -108,7 +112,21 @@ def main() -> int:
             target_window.restore()
             time.sleep(0.2)
 
-        target_window.activate()
+        try:
+            target_window.activate()
+        except Exception as exc:
+            log(
+                "Chrome activation failed; retrying once: "
+                f"{type(exc).__name__}: {exc}"
+            )
+            time.sleep(0.3)
+            try:
+                target_window.activate()
+            except Exception as retry_exc:
+                log(
+                    "Chrome activation retry failed; continuing with paste: "
+                    f"{type(retry_exc).__name__}: {retry_exc}"
+                )
         time.sleep(0.5)
         pyautogui.hotkey("ctrl", "v")
         log("Ctrl+V sent to Chrome.")
