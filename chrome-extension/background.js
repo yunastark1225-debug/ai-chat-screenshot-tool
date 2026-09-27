@@ -123,8 +123,8 @@ async function runCapture({ pasteAfterCapture = false } = {}) {
     if (pasteAfterCapture) {
       // A tab/window switch after the PNG write must never paste into the new target.
       await checkActive();
-      const target = await restorePasteTarget(tab);
-      await requestNativePaste(target.url);
+      await restorePasteTarget(tab);
+      await requestNativePaste();
     }
     await setBadge("✓", `Copied ${result.width} × ${result.height} PNG to clipboard${result.downscaled ? " (large page downscaled)" : ""}`);
   } catch (error) {
@@ -145,20 +145,13 @@ async function runCapture({ pasteAfterCapture = false } = {}) {
 async function setPasteTarget() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab?.id == null || tab.windowId == null || !/^(https?:|file:)/.test(tab.url || "")) {
-      throw new Error("Focus an AI chat input in a normal web tab before setting the paste target.");
+    if (tab?.id == null || tab.windowId == null) {
+      throw new Error("No active Chrome tab is available to save as the paste target.");
     }
-    const marker = `aic-paste-${crypto.randomUUID()}`;
-    const [{ result }] = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: markFocusedPasteTarget,
-      args: [marker]
-    });
-    if (!result?.ok) throw new Error(result?.error || "Focus an AI chat input before setting the paste target.");
     await chrome.storage.local.set({
-      pasteTarget: { windowId: tab.windowId, tabId: tab.id, url: tab.url, marker }
+      pasteTarget: { windowId: tab.windowId, tabId: tab.id }
     });
-    await setBadge("T", "Full Page paste target saved for this AI chat tab");
+    await setBadge("T", "Full Page paste target tab saved");
   } catch (error) {
     await setBadge("!", error?.message || "Could not save paste target");
   }
@@ -166,8 +159,8 @@ async function setPasteTarget() {
 
 async function restorePasteTarget(sourceTab) {
   const { pasteTarget: target } = await chrome.storage.local.get("pasteTarget");
-  if (!target?.tabId || !target?.windowId || !target?.url || !target?.marker) {
-    throw new Error("PNG was copied, but no paste target is set. Focus the AI chat input and press Option+Shift+T once.");
+  if (!target?.tabId || !target?.windowId) {
+    throw new Error("PNG was copied, but no paste target tab is set. Open ChatGPT and press Option+Shift+T once.");
   }
   if (target.tabId === sourceTab.id) {
     throw new Error("PNG was copied, but the paste target is the capture tab. Choose a different AI chat tab with Option+Shift+T.");
@@ -178,33 +171,26 @@ async function restorePasteTarget(sourceTab) {
   } catch (_) {
     throw new Error("PNG was copied, but the saved paste target tab no longer exists. Set it again with Option+Shift+T.");
   }
-  if (targetTab.windowId !== target.windowId || targetTab.url !== target.url) {
-    throw new Error("PNG was copied, but the saved paste target changed. Focus its input and set it again with Option+Shift+T.");
+  if (targetTab.windowId !== target.windowId) {
+    throw new Error("PNG was copied, but the saved paste target window no longer exists. Set the target again with Option+Shift+T.");
   }
   try {
     await chrome.windows.update(target.windowId, { focused: true });
     await chrome.tabs.update(target.tabId, { active: true });
     const [active] = await chrome.tabs.query({ active: true, windowId: target.windowId });
     if (active?.id !== target.tabId) throw new Error("Chrome did not activate the saved paste target.");
-    const [{ result }] = await chrome.scripting.executeScript({
-      target: { tabId: target.tabId },
-      func: focusMarkedPasteTarget,
-      args: [target.marker]
-    });
-    if (!result?.ok) throw new Error(result?.error || "The saved AI chat input could not be focused.");
   } catch (error) {
     throw new Error(`PNG was copied, but automatic paste was cancelled: ${error.message}`);
   }
   return target;
 }
 
-async function requestNativePaste(expectedUrl) {
+async function requestNativePaste() {
   let response;
   try {
     response = await chrome.runtime.sendNativeMessage(NATIVE_PASTE_HOST, {
       type: "paste-full-page-png",
-      protocol: 1,
-      expectedUrl
+      protocol: 1
     });
   } catch (error) {
     throw new Error(`PNG was copied, but automatic paste failed: ${error.message}`);
@@ -214,36 +200,6 @@ async function requestNativePaste(expectedUrl) {
   }
 }
 
-function markFocusedPasteTarget(marker) {
-  const active = document.activeElement;
-  const target = active?.closest?.("textarea, input, [contenteditable=''], [contenteditable='true']");
-  if (!target || !isPasteable(target)) {
-    return { ok: false, error: "Focus a textarea, text input, or editable chat composer first." };
-  }
-  document.querySelectorAll("[data-aic-paste-target]").forEach((element) => {
-    element.removeAttribute("data-aic-paste-target");
-  });
-  target.setAttribute("data-aic-paste-target", marker);
-  return { ok: true };
-}
-
-function focusMarkedPasteTarget(marker) {
-  const target = [...document.querySelectorAll("[data-aic-paste-target]")]
-    .find((element) => element.getAttribute("data-aic-paste-target") === marker);
-  if (!target || !isPasteable(target) || !target.isConnected) {
-    return { ok: false, error: "The saved AI chat input is unavailable. Focus it and set the paste target again." };
-  }
-  target.focus({ preventScroll: true });
-  return document.activeElement === target
-    ? { ok: true }
-    : { ok: false, error: "Chrome could not focus the saved AI chat input." };
-}
-
-function isPasteable(element) {
-  if (element.matches("textarea, [contenteditable=''], [contenteditable='true']")) return !element.matches("[aria-disabled='true']");
-  if (!element.matches("input")) return false;
-  return !element.disabled && !element.readOnly && !["button", "checkbox", "file", "hidden", "radio", "submit"].includes(element.type);
-}
 
 function assertGeometry(expected, actual, position = false) {
   const keys = ["totalHeight", "viewportWidth", "viewportHeight", "screenshotHeight", "contentWidth", "dpr", "layoutVersion"];

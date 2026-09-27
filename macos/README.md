@@ -17,7 +17,7 @@ No screenshot image is saved to disk.
 - `D2_Shot.applescript` — Display 2
 - `FullPage_Shot.applescript` — starts the dedicated Chrome full-page command
 - `full_page_native_host.py` — receives a success notification from Chrome and
-  pastes the finished PNG into the focused input
+  pastes the finished PNG into the restored ChatGPT tab
 - `install_full_page_native_host.sh` — registers that host with Chrome
 
 ## Full Page: one Stream Deck button
@@ -30,14 +30,14 @@ The completion path is:
 
 ```text
 Stream Deck → FullPage_Shot Shortcut → Option+Shift+Y → Chrome extension
-→ PNG clipboard write succeeds → saved chat window/tab/input is restored
+→ PNG clipboard write succeeds → saved ChatGPT window/tab is restored
 → Native Messaging acknowledgement → Cmd+V
 ```
 
 The native host receives no image bytes. Chrome asks it to paste only after
-`ClipboardItem(image/png)` succeeds and after it has activated the saved tab and
-focused its saved input. A failed, cancelled, resized, navigated or timed-out
-capture never calls the host, so it cannot paste a stale image.
+`ClipboardItem(image/png)` succeeds and after it has activated the saved tab.
+A failed, cancelled, resized, navigated or timed-out capture never calls the
+host, so it cannot paste a stale image.
 
 ### First-time setup
 
@@ -55,15 +55,14 @@ capture never calls the host, so it cannot paste a stale image.
    the absolute path of this checkout, so rerun it after moving the repository.
    Python 3 is required. The host is limited to this extension ID.
 3. Open `chrome://extensions/shortcuts` and assign **Capture full page and paste
-   the PNG into the focused Chrome input** to **Option + Shift + Y**. Confirm it
+   the PNG into the saved Chrome tab** to **Option + Shift + Y**. Confirm it
    is not reported as conflicting. Do not replace the existing
    **Capture full page to clipboard** command on Option + Shift + P.
-4. Also assign **Remember the focused AI chat input as the Full Page paste
-   target** to **Option + Shift + T**.
-5. In the AI-chat tab, click or tab into the exact composer that should receive
-   images, then press **Option + Shift + T** once. The extension stores its
-   Chrome window ID, tab ID, exact URL, and an input marker. This is needed only
-   when first setting or changing the destination.
+4. Also assign **Remember the current AI chat tab as the Full Page paste target**
+   to **Option + Shift + T**.
+5. Open the ChatGPT tab that should receive images and press **Option + Shift +
+   T** once. The extension stores only its Chrome window ID and tab ID. This is
+   needed only when first setting or changing the destination.
 6. Create a macOS Shortcut named `FullPage_Shot`, add **Run AppleScript**, and
    paste the contents of `FullPage_Shot.applescript`.
 7. In Stream Deck, create a button named **Full Page** using the **Shortcuts**
@@ -79,8 +78,8 @@ capture never calls the host, so it cannot paste a stale image.
    tab or window from the page that will be captured.
 2. Open the page to capture, then press Stream Deck **Full Page** once.
 3. Keep Chrome's capture window/tab, size and zoom unchanged until the extension
-   badge becomes `✓`. Chrome returns to the saved target tab, focuses its marked
-   input, and pastes the PNG without submitting.
+   badge becomes `✓`. Chrome returns to the saved target tab and pastes the PNG
+   without submitting, following the same no-click approach as D1/D2.
 
 `…` means capture in progress. `!` means failure; no automatic paste is sent.
 If the badge says that the native host failed, the PNG may still be in the
@@ -88,11 +87,11 @@ clipboard, but the workflow intentionally does not send Cmd+V.
 
 ### Change or repair the paste target
 
-Focus the desired chat composer and press **Option + Shift + T** again. This
-replaces the stored target. A target is rejected safely if its tab/window was
-closed, its URL changed, or its marked input was replaced; in those cases the
-PNG may be copied but `!` is shown and nothing is pasted. Set the target again
-after restarting Chrome, navigating the target tab, or changing chats.
+Open the desired ChatGPT tab and press **Option + Shift + T** again. This
+replaces the stored target. A target is rejected safely only if its tab/window
+was closed; in that case the PNG may be copied but `!` is shown and nothing is
+pasted. Set the target again after restarting Chrome or closing the target tab.
+ChatGPT navigation and DOM updates do not invalidate it.
 
 ## Shortcuts setup
 
@@ -139,9 +138,9 @@ Run these after installing the native host and creating the Stream Deck action.
 2. Test a page with lazy images, sticky navigation and a Retina display. Verify
    the pasted PNG includes the bottom of the page and has no repeated fixed
    overlay.
-3. Test without a paste target; then close its tab/window, navigate it, or remove
-   its marked composer. Each must show `!` and must not paste. Reset it with
-   Option+Shift+T and retry.
+3. Test without a paste target, then close its tab/window. Each must show `!`
+   and must not paste. Reset it with Option+Shift+T and retry. Navigate the
+   ChatGPT tab or allow its composer to redraw; the target should remain valid.
 4. During a capture, switch tab, navigate, resize Chrome, and test a page that
    exceeds the extension timeout. Each case must show `!` and must not paste.
 5. Press the Full Page button twice rapidly. There should be one capture and at

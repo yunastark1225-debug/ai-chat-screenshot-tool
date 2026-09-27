@@ -10,11 +10,10 @@ monitor screenshot tools are independent and unchanged.
 - **Option + Shift + P** — capture the page and copy the PNG. This is the
   standalone extension command and toolbar-button behavior.
 - **Option + Shift + Y** — macOS Full Page workflow. After a successful PNG
-  clipboard write, it restores the separately saved AI-chat tab and marked input,
-  then asks the installed native host to paste once. It never submits the input.
-- **Option + Shift + T** — save the currently focused textarea, text input, or
-  contenteditable AI-chat composer as the Full Page paste target. This does not
-  capture or paste anything.
+  clipboard write, it restores the separately saved AI-chat tab, then asks the
+  installed native host to paste once. It never submits the input.
+- **Option + Shift + T** — save the current Chrome tab as the Full Page paste
+  target. This does not capture or paste anything.
 
 ## Install / Stream Deck
 
@@ -28,7 +27,7 @@ monitor screenshot tools are independent and unchanged.
    It installs a Native Messaging host and runs the `FullPage_Shot` Shortcut;
    do not use a Hotkey action for that workflow.
 4. `…` = working, `T` = paste target saved, `✓` = PNG copied (and, for
-   Option+Shift+Y, target focus plus native paste were acknowledged), `!` =
+   Option+Shift+Y, target-tab restoration plus native paste were acknowledged), `!` =
    failed. A `!` state never requests automatic paste.
 
 ## Capture behavior
@@ -79,10 +78,10 @@ monitor screenshot tools are independent and unchanged.
 - Automatic paste is currently the macOS Native Messaging workflow. Windows
   retains its existing D1/D2 workflow; the standalone Option+Shift+P command
   remains copy-only on every platform.
-- The saved target is intentionally exact: it requires the same Chrome tab,
-  window, URL, and marked input element. After Chrome restart, target navigation,
-  or a chat UI replacing its composer, press Option+Shift+T in the desired input
-  again. The extension copies the PNG but refuses to paste anywhere else.
+- The saved target is intentionally simple: it requires the same Chrome tab and
+  window. After Chrome restart or closing that tab/window, press Option+Shift+T
+  in the desired ChatGPT tab again. ChatGPT URL and DOM changes do not invalidate
+  the saved target.
 
 ## Automated tests
 

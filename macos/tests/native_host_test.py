@@ -13,12 +13,11 @@ SPEC.loader.exec_module(native_host)
 class NativeHostTests(unittest.TestCase):
     def test_paste_uses_system_events_and_never_submits(self):
         with patch.object(native_host.subprocess, "run") as run:
-            native_host.paste_into_frontmost_chrome("https://chat.example.test/")
+            native_host.paste_into_frontmost_chrome()
 
         command = run.call_args.args[0]
         self.assertEqual(command[:2], ["/usr/bin/osascript", "-e"])
         self.assertIn('process "Google Chrome"', command[2])
-        self.assertIn('URL of active tab of front window is not expectedURL', command[2])
         self.assertIn('keystroke "v" using {command down}', command[2])
         self.assertNotIn("keystroke return", command[2])
 
@@ -32,13 +31,13 @@ class NativeHostTests(unittest.TestCase):
         self.assertFalse(write.call_args.args[0]["ok"])
 
     def test_expected_message_pastes_and_acknowledges(self):
-        message = {"type": native_host.MESSAGE_TYPE, "protocol": native_host.PROTOCOL, "expectedUrl": "https://chat.example.test/"}
+        message = {"type": native_host.MESSAGE_TYPE, "protocol": native_host.PROTOCOL}
         with patch.object(native_host, "read_message", return_value=message), \
              patch.object(native_host, "paste_into_frontmost_chrome") as paste, \
              patch.object(native_host, "write_message") as write:
             native_host.main()
 
-        paste.assert_called_once_with("https://chat.example.test/")
+        paste.assert_called_once_with()
         self.assertEqual(write.call_args.args[0], {"ok": True})
 
 

@@ -70,7 +70,7 @@ async function finishCapture(message) {
     });
     const result = { width: canvas.width, height: canvas.height, bytes: blob.size, downscaled: state.downscaled };
     // Offscreen documents cannot acquire focus for the Async Clipboard API.
-    // Hold the PNG here while a tiny focused extension frame pulls bounded chunks.
+    // Hold the PNG while the focused capture page pulls bounded chunks.
     clipboard = { blob, token: message.token, tabId: message.tabId };
     return result;
   } finally {

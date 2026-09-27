@@ -9,9 +9,7 @@ function setup(options = {}) {
   let activeId = 1, activeWindowId = 10, y = 0, now = 1000, height = 1700, captures = 0, stopped = false, resized = false;
   let storedTarget = options.pasteTarget === false ? null : {
     windowId: options.targetWindowId || 20,
-    tabId: options.targetTabId || 2,
-    url: 'https://chat.example.test/',
-    marker: 'aic-paste-target'
+    tabId: options.targetTabId || 2
   };
   const tabFor = (id) => id === 2
     ? {id: 2, windowId: storedTarget?.windowId || 20, url: options.targetUrl || 'https://chat.example.test/'}
@@ -55,13 +53,6 @@ function setup(options = {}) {
     },
     scripting: { executeScript: async (request) => {
       if (request.files) return [{documentId:'original-document'}];
-      if (request.target.tabId === 1 && !request.target.documentIds) {
-        return [{result: options.noFocusedInput ? {ok:false,error:'No focused input'} : {ok:true}}];
-      }
-      if (request.target.tabId === 2) {
-        calls.push(['focusPasteTarget', request.args[0]]);
-        return [{result: options.focusFailure ? {ok:false,error:'Input is unavailable'} : {ok:true}}];
-      }
       assert.deepEqual(Array.from(request.target.documentIds), ['original-document']);
       assert.equal(request.target.tabId, 1);
       assert.ok(request.args.every(value => value !== undefined), 'executeScript args must serialize');
@@ -123,8 +114,8 @@ test('the dedicated command requests one native paste only after PNG copy succee
   assert.equal(s.nativeCalls[0][0], 'com.ai_chat_screenshot.full_page_paste');
   assert.equal(s.nativeCalls[0][1].type, 'paste-full-page-png');
   assert.equal(s.nativeCalls[0][1].protocol, 1);
-  assert.equal(s.nativeCalls[0][1].expectedUrl, 'https://chat.example.test/');
-  assert.equal(s.calls.filter(x=>x[0]==='focusPasteTarget').length, 1);
+  assert.equal(s.nativeCalls[0][1].type, 'paste-full-page-png');
+  assert.equal(s.nativeCalls[0][1].protocol, 1);
   assert.deepEqual(s.windowUpdates, [20]);
   assert.deepEqual(s.tabUpdates, [2]);
   assert.equal(s.badges.at(-1), '✓');
@@ -141,8 +132,7 @@ test('a tab switch after PNG copy prevents the native paste', async () => {
 });
 for (const [name, options] of [
   ['no paste target', {pasteTarget:false}],
-  ['closed paste target tab', {closedTarget:true}],
-  ['unfocusable paste target input', {focusFailure:true}]
+  ['closed paste target tab', {closedTarget:true}]
 ]) test(`${name} never requests a native paste`, async () => {
   const s = setup(options); await s.runPaste();
   assert.equal(s.nativeCalls.length, 0);
@@ -159,7 +149,7 @@ test('a closed paste target window never requests a native paste', async () => {
   assert.equal(s.nativeCalls.length, 0);
   assert.equal(s.badges.at(-1), '!');
 });
-test('setting a target persists the active tab and a fresh input marker', async () => {
+test('setting a target persists the active tab', async () => {
   const s = setup({pasteTarget:false}); await s.setTarget();
   assert.equal(s.badges.at(-1), 'T');
 });

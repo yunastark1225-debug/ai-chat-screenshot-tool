@@ -31,14 +31,14 @@
         "default": "Alt+Shift+Y",
         "mac": "Alt+Shift+Y"
       },
-      "description": "Capture full page and paste the PNG into the focused Chrome input"
+      "description": "Capture full page and paste the PNG into the saved Chrome tab"
     },
     "set-paste-target": {
       "suggested_key": {
         "default": "Alt+Shift+T",
         "mac": "Alt+Shift+T"
       },
-      "description": "Remember the focused AI chat input as the Full Page paste target"
+      "description": "Remember the current AI chat tab as the Full Page paste target"
     }
   },
   "minimum_chrome_version": "116"
