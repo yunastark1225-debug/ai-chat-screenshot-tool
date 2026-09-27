@@ -23,19 +23,21 @@ No screenshot image is saved to disk.
 ## Full Page: one Stream Deck button
 
 The Full Page action is separate from D1/D2. It captures the current Chrome tab,
-waits for the extension to copy a PNG, then pastes into the already focused AI
-chat input. It never sends the message.
+then returns to a separately remembered AI-chat tab and pastes into its remembered
+input. It never sends the message.
 
 The completion path is:
 
 ```text
 Stream Deck → FullPage_Shot Shortcut → Option+Shift+Y → Chrome extension
-→ PNG clipboard write succeeds → Native Messaging acknowledgement → Cmd+V
+→ PNG clipboard write succeeds → saved chat window/tab/input is restored
+→ Native Messaging acknowledgement → Cmd+V
 ```
 
 The native host receives no image bytes. Chrome asks it to paste only after
-`ClipboardItem(image/png)` succeeds. A failed, cancelled, resized, navigated or
-timed-out capture never calls the host, so it cannot paste a stale image.
+`ClipboardItem(image/png)` succeeds and after it has activated the saved tab and
+focused its saved input. A failed, cancelled, resized, navigated or timed-out
+capture never calls the host, so it cannot paste a stale image.
 
 ### First-time setup
 
@@ -56,25 +58,41 @@ timed-out capture never calls the host, so it cannot paste a stale image.
    the PNG into the focused Chrome input** to **Option + Shift + Y**. Confirm it
    is not reported as conflicting. Do not replace the existing
    **Capture full page to clipboard** command on Option + Shift + P.
-4. Create a macOS Shortcut named `FullPage_Shot`, add **Run AppleScript**, and
+4. Also assign **Remember the focused AI chat input as the Full Page paste
+   target** to **Option + Shift + T**.
+5. In the AI-chat tab, click or tab into the exact composer that should receive
+   images, then press **Option + Shift + T** once. The extension stores its
+   Chrome window ID, tab ID, exact URL, and an input marker. This is needed only
+   when first setting or changing the destination.
+6. Create a macOS Shortcut named `FullPage_Shot`, add **Run AppleScript**, and
    paste the contents of `FullPage_Shot.applescript`.
-5. In Stream Deck, create a button named **Full Page** using the **Shortcuts**
+7. In Stream Deck, create a button named **Full Page** using the **Shortcuts**
    action and select `FullPage_Shot`. Do not use a Hotkey action for this button.
-6. Grant Accessibility permission to the app that runs the action (typically
+8. Grant Accessibility permission to the app that runs the action (typically
    Shortcuts or Stream Deck) and to Google Chrome when macOS requests it. No
    Screen Recording permission is needed for Full Page; D1/D2 retain their
    existing Screen Recording requirement.
 
 ### Daily use
 
-1. Keep the intended AI chat input focused in the frontmost Chrome window.
-2. Press Stream Deck **Full Page** once.
-3. Keep Chrome's window/tab, size and zoom unchanged until the extension badge
-   becomes `✓`. The PNG is pasted into that focused input and is not submitted.
+1. Set the AI-chat paste target once as above. It can be in a different Chrome
+   tab or window from the page that will be captured.
+2. Open the page to capture, then press Stream Deck **Full Page** once.
+3. Keep Chrome's capture window/tab, size and zoom unchanged until the extension
+   badge becomes `✓`. Chrome returns to the saved target tab, focuses its marked
+   input, and pastes the PNG without submitting.
 
 `…` means capture in progress. `!` means failure; no automatic paste is sent.
 If the badge says that the native host failed, the PNG may still be in the
 clipboard, but the workflow intentionally does not send Cmd+V.
+
+### Change or repair the paste target
+
+Focus the desired chat composer and press **Option + Shift + T** again. This
+replaces the stored target. A target is rejected safely if its tab/window was
+closed, its URL changed, or its marked input was replaced; in those cases the
+PNG may be copied but `!` is shown and nothing is pasted. Set the target again
+after restarting Chrome, navigating the target tab, or changing chats.
 
 ## Shortcuts setup
 
@@ -114,17 +132,21 @@ set CLICK_FROM_BOTTOM_PX to 120
 
 Run these after installing the native host and creating the Stream Deck action.
 
-1. Focus an AI-chat text input, then test a short page and a long page. Confirm
-   exactly one PNG is pasted, no message is sent, and the original scroll point
-   returns.
+1. Set an AI-chat target in a different tab, then test a short page and a long
+   page. Confirm Chrome returns to that target, exactly one PNG is pasted, no
+   message is sent, and the source scroll point returns. Repeat with the target
+   in another Chrome window.
 2. Test a page with lazy images, sticky navigation and a Retina display. Verify
    the pasted PNG includes the bottom of the page and has no repeated fixed
    overlay.
-3. During a capture, switch tab, navigate, resize Chrome, and test a page that
+3. Test without a paste target; then close its tab/window, navigate it, or remove
+   its marked composer. Each must show `!` and must not paste. Reset it with
+   Option+Shift+T and retry.
+4. During a capture, switch tab, navigate, resize Chrome, and test a page that
    exceeds the extension timeout. Each case must show `!` and must not paste.
-4. Press the Full Page button twice rapidly. There should be one capture and at
+5. Press the Full Page button twice rapidly. There should be one capture and at
    most one paste.
-5. Run D1 and D2 once. Their display capture, Chrome activation and paste should
+6. Run D1 and D2 once. Their display capture, Chrome activation and paste should
    behave as before.
 
 See `chrome-extension/README.md` for capture-size and page-structure limits.

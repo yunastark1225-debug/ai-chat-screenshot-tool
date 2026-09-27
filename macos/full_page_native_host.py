@@ -2,12 +2,12 @@
 """Chrome Native Messaging host for the macOS full-page Stream Deck action."""
 
 import json
-import os
 import struct
 import subprocess
 import sys
 
-EXPECTED_MESSAGE = {"type": "paste-full-page-png", "protocol": 1}
+MESSAGE_TYPE = "paste-full-page-png"
+PROTOCOL = 1
 
 
 def read_message():
@@ -29,25 +29,37 @@ def write_message(payload):
     sys.stdout.buffer.flush()
 
 
-def paste_into_frontmost_chrome():
+def paste_into_frontmost_chrome(expected_url):
     script = '''
+on run argv
+set expectedURL to item 1 of argv
 tell application "System Events"
   if not (exists process "Google Chrome") then error "Google Chrome is not running"
   tell process "Google Chrome"
     if not frontmost then error "Google Chrome is no longer frontmost"
+  end tell
+end tell
+tell application "Google Chrome"
+  if URL of active tab of front window is not expectedURL then error "The saved paste target is no longer active"
+end tell
+tell application "System Events"
+  tell process "Google Chrome"
     keystroke "v" using {command down}
   end tell
 end tell
+end run
 '''
-    subprocess.run(["/usr/bin/osascript", "-e", script], check=True,
+    subprocess.run(["/usr/bin/osascript", "-e", script, expected_url], check=True,
                    stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
 
 
 def main():
     try:
-        if read_message() != EXPECTED_MESSAGE:
+        message = read_message()
+        if (message.get("type") != MESSAGE_TYPE or message.get("protocol") != PROTOCOL
+                or not isinstance(message.get("expectedUrl"), str) or not message["expectedUrl"]):
             raise ValueError("unexpected native message")
-        paste_into_frontmost_chrome()
+        paste_into_frontmost_chrome(message["expectedUrl"])
         write_message({"ok": True})
     except Exception as error:  # Chrome must receive a response instead of pasting blindly.
         write_message({"ok": False, "error": str(error)})

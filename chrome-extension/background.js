@@ -10,6 +10,7 @@ let lastCaptureAt = 0;
 chrome.commands.onCommand.addListener((command) => {
   if (command === "capture-full-page") void runCapture({ pasteAfterCapture: false });
   if (command === "capture-full-page-and-paste") void runCapture({ pasteAfterCapture: true });
+  if (command === "set-paste-target") void setPasteTarget();
 });
 chrome.action.onClicked.addListener(() => void runCapture({ pasteAfterCapture: false }));
 
@@ -27,9 +28,13 @@ async function runCapture({ pasteAfterCapture = false } = {}) {
   const onFocus = (id) => {
     if (tab && id !== tab.windowId) cancelled = true;
   };
+  const onBoundsChanged = (window) => {
+    if (tab && window.id === tab.windowId) cancelled = true;
+  };
   chrome.tabs.onActivated.addListener(onActivated);
   chrome.tabs.onUpdated.addListener(onUpdated);
   chrome.windows.onFocusChanged.addListener(onFocus);
+  chrome.windows.onBoundsChanged.addListener(onBoundsChanged);
   const checkActive = async () => {
     if (cancelled) throw new Error("Capture cancelled: tab, page or window changed. Retry in the target tab.");
     if (Date.now() > deadline) throw new Error("Page is too long or keeps changing (4 minute limit).");
@@ -118,7 +123,8 @@ async function runCapture({ pasteAfterCapture = false } = {}) {
     if (pasteAfterCapture) {
       // A tab/window switch after the PNG write must never paste into the new target.
       await checkActive();
-      await requestNativePaste();
+      const target = await restorePasteTarget(tab);
+      await requestNativePaste(target.url);
     }
     await setBadge("✓", `Copied ${result.width} × ${result.height} PNG to clipboard${result.downscaled ? " (large page downscaled)" : ""}`);
   } catch (error) {
@@ -131,16 +137,74 @@ async function runCapture({ pasteAfterCapture = false } = {}) {
     chrome.tabs.onActivated.removeListener(onActivated);
     chrome.tabs.onUpdated.removeListener(onUpdated);
     chrome.windows.onFocusChanged.removeListener(onFocus);
+    chrome.windows.onBoundsChanged.removeListener(onBoundsChanged);
     running = false;
   }
 }
 
-async function requestNativePaste() {
+async function setPasteTarget() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.id == null || tab.windowId == null || !/^(https?:|file:)/.test(tab.url || "")) {
+      throw new Error("Focus an AI chat input in a normal web tab before setting the paste target.");
+    }
+    const marker = `aic-paste-${crypto.randomUUID()}`;
+    const [{ result }] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: markFocusedPasteTarget,
+      args: [marker]
+    });
+    if (!result?.ok) throw new Error(result?.error || "Focus an AI chat input before setting the paste target.");
+    await chrome.storage.local.set({
+      pasteTarget: { windowId: tab.windowId, tabId: tab.id, url: tab.url, marker }
+    });
+    await setBadge("T", "Full Page paste target saved for this AI chat tab");
+  } catch (error) {
+    await setBadge("!", error?.message || "Could not save paste target");
+  }
+}
+
+async function restorePasteTarget(sourceTab) {
+  const { pasteTarget: target } = await chrome.storage.local.get("pasteTarget");
+  if (!target?.tabId || !target?.windowId || !target?.url || !target?.marker) {
+    throw new Error("PNG was copied, but no paste target is set. Focus the AI chat input and press Option+Shift+T once.");
+  }
+  if (target.tabId === sourceTab.id) {
+    throw new Error("PNG was copied, but the paste target is the capture tab. Choose a different AI chat tab with Option+Shift+T.");
+  }
+  let targetTab;
+  try {
+    targetTab = await chrome.tabs.get(target.tabId);
+  } catch (_) {
+    throw new Error("PNG was copied, but the saved paste target tab no longer exists. Set it again with Option+Shift+T.");
+  }
+  if (targetTab.windowId !== target.windowId || targetTab.url !== target.url) {
+    throw new Error("PNG was copied, but the saved paste target changed. Focus its input and set it again with Option+Shift+T.");
+  }
+  try {
+    await chrome.windows.update(target.windowId, { focused: true });
+    await chrome.tabs.update(target.tabId, { active: true });
+    const [active] = await chrome.tabs.query({ active: true, windowId: target.windowId });
+    if (active?.id !== target.tabId) throw new Error("Chrome did not activate the saved paste target.");
+    const [{ result }] = await chrome.scripting.executeScript({
+      target: { tabId: target.tabId },
+      func: focusMarkedPasteTarget,
+      args: [target.marker]
+    });
+    if (!result?.ok) throw new Error(result?.error || "The saved AI chat input could not be focused.");
+  } catch (error) {
+    throw new Error(`PNG was copied, but automatic paste was cancelled: ${error.message}`);
+  }
+  return target;
+}
+
+async function requestNativePaste(expectedUrl) {
   let response;
   try {
     response = await chrome.runtime.sendNativeMessage(NATIVE_PASTE_HOST, {
       type: "paste-full-page-png",
-      protocol: 1
+      protocol: 1,
+      expectedUrl
     });
   } catch (error) {
     throw new Error(`PNG was copied, but automatic paste failed: ${error.message}`);
@@ -148,6 +212,37 @@ async function requestNativePaste() {
   if (!response?.ok) {
     throw new Error(`PNG was copied, but automatic paste failed: ${response?.error || "native host rejected the request"}`);
   }
+}
+
+function markFocusedPasteTarget(marker) {
+  const active = document.activeElement;
+  const target = active?.closest?.("textarea, input, [contenteditable=''], [contenteditable='true']");
+  if (!target || !isPasteable(target)) {
+    return { ok: false, error: "Focus a textarea, text input, or editable chat composer first." };
+  }
+  document.querySelectorAll("[data-aic-paste-target]").forEach((element) => {
+    element.removeAttribute("data-aic-paste-target");
+  });
+  target.setAttribute("data-aic-paste-target", marker);
+  return { ok: true };
+}
+
+function focusMarkedPasteTarget(marker) {
+  const target = [...document.querySelectorAll("[data-aic-paste-target]")]
+    .find((element) => element.getAttribute("data-aic-paste-target") === marker);
+  if (!target || !isPasteable(target) || !target.isConnected) {
+    return { ok: false, error: "The saved AI chat input is unavailable. Focus it and set the paste target again." };
+  }
+  target.focus({ preventScroll: true });
+  return document.activeElement === target
+    ? { ok: true }
+    : { ok: false, error: "Chrome could not focus the saved AI chat input." };
+}
+
+function isPasteable(element) {
+  if (element.matches("textarea, [contenteditable=''], [contenteditable='true']")) return !element.matches("[aria-disabled='true']");
+  if (!element.matches("input")) return false;
+  return !element.disabled && !element.readOnly && !["button", "checkbox", "file", "hidden", "radio", "submit"].includes(element.type);
 }
 
 function assertGeometry(expected, actual, position = false) {

@@ -10,8 +10,11 @@ monitor screenshot tools are independent and unchanged.
 - **Option + Shift + P** — capture the page and copy the PNG. This is the
   standalone extension command and toolbar-button behavior.
 - **Option + Shift + Y** — macOS Full Page workflow. After a successful PNG
-  clipboard write, it asks the installed native host to paste once into the
-  focused Chrome input. It never submits the input.
+  clipboard write, it restores the separately saved AI-chat tab and marked input,
+  then asks the installed native host to paste once. It never submits the input.
+- **Option + Shift + T** — save the currently focused textarea, text input, or
+  contenteditable AI-chat composer as the Full Page paste target. This does not
+  capture or paste anything.
 
 ## Install / Stream Deck
 
@@ -24,8 +27,9 @@ monitor screenshot tools are independent and unchanged.
    [`macos/README.md`](../macos/README.md#full-page-one-stream-deck-button).
    It installs a Native Messaging host and runs the `FullPage_Shot` Shortcut;
    do not use a Hotkey action for that workflow.
-4. `…` = working, `✓` = PNG copied (and, for Option+Shift+Y, a native paste was
-   acknowledged), `!` = failed. A `!` state never requests automatic paste.
+4. `…` = working, `T` = paste target saved, `✓` = PNG copied (and, for
+   Option+Shift+Y, target focus plus native paste were acknowledged), `!` =
+   failed. A `!` state never requests automatic paste.
 
 ## Capture behavior
 
@@ -75,6 +79,10 @@ monitor screenshot tools are independent and unchanged.
 - Automatic paste is currently the macOS Native Messaging workflow. Windows
   retains its existing D1/D2 workflow; the standalone Option+Shift+P command
   remains copy-only on every platform.
+- The saved target is intentionally exact: it requires the same Chrome tab,
+  window, URL, and marked input element. After Chrome restart, target navigation,
+  or a chat UI replacing its composer, press Option+Shift+T in the desired input
+  again. The extension copies the PNG but refuses to paste anywhere else.
 
 ## Automated tests
 

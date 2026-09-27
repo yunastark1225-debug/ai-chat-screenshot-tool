@@ -9,7 +9,8 @@
     "scripting",
     "offscreen",
     "clipboardWrite",
-    "nativeMessaging"
+    "nativeMessaging",
+    "storage"
   ],
   "background": {
     "service_worker": "background.js"
@@ -31,6 +32,13 @@
         "mac": "Alt+Shift+Y"
       },
       "description": "Capture full page and paste the PNG into the focused Chrome input"
+    },
+    "set-paste-target": {
+      "suggested_key": {
+        "default": "Alt+Shift+T",
+        "mac": "Alt+Shift+T"
+      },
+      "description": "Remember the focused AI chat input as the Full Page paste target"
     }
   },
   "minimum_chrome_version": "116"
