@@ -1,143 +1,100 @@
 const canvas = document.getElementById("capture");
 const ctx = canvas.getContext("2d", { alpha: false });
-
-const MAX_CANVAS_DIMENSION = 30000;
-const MAX_CANVAS_PIXELS = 120_000_000;
-
 let state = null;
+let clipboard = null;
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.target !== "offscreen") return;
-
-  handleMessage(message)
-    .then((result) => sendResponse({ ok: true, ...result }))
-    .catch((error) => {
-      console.error("Offscreen capture error:", error);
-      sendResponse({ ok: false, error: error?.message || String(error) });
-    });
-
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.target !== "offscreen" || sender.id !== chrome.runtime.id) return;
+  handleMessage(message, sender).then((result) => sendResponse({ ok: true, ...result })).catch((error) => {
+    if (message.type !== "CLIPBOARD_CHUNK") resetCapture();
+    sendResponse({ ok: false, error: error?.message || String(error) });
+  });
   return true;
 });
 
-async function handleMessage(message) {
+async function handleMessage(message, sender) {
   switch (message.type) {
-    case "INIT_CAPTURE":
-      return initCapture(message);
-    case "ADD_CAPTURE":
-      return addCapture(message);
-    case "FINISH_CAPTURE":
-      return finishCapture();
-    default:
-      throw new Error(`Unknown offscreen message: ${message.type}`);
+    case "RESET_CAPTURE": return resetCapture();
+    case "INIT_CAPTURE": return initCapture(message);
+    case "ADD_CAPTURE": return addCapture(message);
+    case "FINISH_CAPTURE": return finishCapture(message);
+    case "CLIPBOARD_CHUNK": return clipboardChunk(message, sender);
+    default: throw new Error(`Unknown capture operation: ${message.type}`);
   }
 }
-
+function resetCapture() {
+  state = null;
+  clipboard = null;
+  canvas.width = canvas.height = 1;
+  return {};
+}
 async function initCapture(message) {
+  resetCapture();
   const image = await loadImage(message.dataUrl);
-  const sourceScaleX = image.naturalWidth / message.viewportWidth;
-  const sourceScaleY = image.naturalHeight / message.viewportHeight;
-
-  const naturalWidth = image.naturalWidth;
-  const naturalHeight = Math.ceil(message.totalHeight * sourceScaleY);
-
-  const dimensionScale = Math.min(
-    1,
-    MAX_CANVAS_DIMENSION / Math.max(naturalWidth, naturalHeight)
+  // Use actual capture pixels: DPR alone is insufficient at fractional zoom.
+  const size = CaptureGeometry.outputSize(
+    image.naturalWidth * message.contentWidth / message.viewportWidth,
+    Math.ceil(message.totalHeight * image.naturalHeight / message.screenshotHeight)
   );
-  const pixelScale = Math.min(
-    1,
-    Math.sqrt(MAX_CANVAS_PIXELS / Math.max(1, naturalWidth * naturalHeight))
-  );
-  const outputScale = Math.min(dimensionScale, pixelScale);
-
-  canvas.width = Math.max(1, Math.floor(naturalWidth * outputScale));
-  canvas.height = Math.max(1, Math.floor(naturalHeight * outputScale));
-
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
+  canvas.width = size.width;
+  canvas.height = size.height;
+  if (!ctx || ctx.isContextLost()) throw new Error("Canvas allocation failed. Try a smaller page or lower zoom.");
   state = {
-    totalHeight: message.totalHeight,
-    viewportHeight: message.viewportHeight,
-    sourceScaleX,
-    sourceScaleY,
-    outputScale,
+    ...size, totalHeight: message.totalHeight, viewportHeight: message.viewportHeight,
+    screenshotHeight: message.screenshotHeight, sourceWidth: image.naturalWidth, sourceHeight: image.naturalHeight,
+    cropWidth: image.naturalWidth * message.contentWidth / message.viewportWidth,
     coveredCssY: 0
   };
-
-  drawCapture(image, message.scrollY, message.viewportHeight);
-  return { width: canvas.width, height: canvas.height };
+  drawCapture(image, message.scrollY);
+  return size;
 }
-
 async function addCapture(message) {
   if (!state) throw new Error("Capture session has not been initialized.");
   const image = await loadImage(message.dataUrl);
-  drawCapture(image, message.scrollY, message.viewportHeight);
+  if (image.naturalWidth !== state.sourceWidth || image.naturalHeight !== state.sourceHeight) {
+    throw new Error("Screenshot size changed. Keep the window size and display unchanged.");
+  }
+  drawCapture(image, message.scrollY);
   return {};
 }
-
-function drawCapture(image, scrollY, viewportHeight) {
-  const topCss = Math.max(0, scrollY);
-  const bottomCss = Math.min(state.totalHeight, scrollY + viewportHeight);
-  const skipCss = Math.max(0, state.coveredCssY - topCss);
-  const drawTopCss = topCss + skipCss;
-  const drawHeightCss = Math.max(0, bottomCss - drawTopCss);
-
-  if (drawHeightCss <= 0) return;
-
-  const sx = 0;
-  const sy = Math.round(skipCss * state.sourceScaleY);
-  const sw = image.naturalWidth;
-  const sh = Math.min(
-    image.naturalHeight - sy,
-    Math.round(drawHeightCss * state.sourceScaleY)
-  );
-
-  const dx = 0;
-  const dy = Math.round(drawTopCss * state.sourceScaleY * state.outputScale);
-  const dw = canvas.width;
-  const dh = Math.round(sh * state.outputScale);
-
-  ctx.drawImage(image, sx, sy, sw, sh, dx, dy, dw, dh);
-  state.coveredCssY = Math.max(state.coveredCssY, bottomCss);
+function drawCapture(image, scrollY) {
+  const rect = CaptureGeometry.tileRect(state, scrollY, state.viewportHeight, image.naturalHeight * state.viewportHeight / state.screenshotHeight, canvas.height);
+  if (rect.dh > 0) ctx.drawImage(image, 0, rect.sy, state.cropWidth, rect.sh, 0, rect.dy, canvas.width, rect.dh);
+  state.coveredCssY = rect.bottom;
 }
-
-async function finishCapture() {
-  if (!state) throw new Error("Capture session has not been initialized.");
-
-  const blob = await canvasToBlob(canvas, "image/png");
-  await navigator.clipboard.write([
-    new ClipboardItem({ "image/png": blob })
-  ]);
-
-  const result = {
-    width: canvas.width,
-    height: canvas.height,
-    bytes: blob.size
-  };
-
-  state = null;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  canvas.width = 1;
-  canvas.height = 1;
-
-  return result;
+async function finishCapture(message) {
+  if (!state || state.coveredCssY < state.totalHeight) throw new Error("Capture is incomplete; clipboard was not changed.");
+  try {
+    const blob = await new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Failed to encode PNG. Try a smaller page.")), "image/png");
+    });
+    const result = { width: canvas.width, height: canvas.height, bytes: blob.size, downscaled: state.downscaled };
+    // Offscreen documents cannot acquire focus for the Async Clipboard API.
+    // Hold the PNG here while a tiny focused extension frame pulls bounded chunks.
+    clipboard = { blob, token: message.token, tabId: message.tabId };
+    return result;
+  } finally {
+    state = null;
+    canvas.width = canvas.height = 1;
+  }
+}
+async function clipboardChunk(message, sender) {
+  if (!clipboard || message.token !== clipboard.token || sender.id !== chrome.runtime.id) {
+    throw new Error("Invalid clipboard session.");
+  }
+  const offset = message.offset;
+  if (!Number.isSafeInteger(offset) || offset < 0 || offset >= clipboard.blob.size) throw new Error("Invalid PNG offset.");
+  const bytes = new Uint8Array(await clipboard.blob.slice(offset, offset + 262144).arrayBuffer());
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 8192) binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+  return { data: btoa(binary), next: offset + bytes.length, total: clipboard.blob.size };
 }
 
 function loadImage(dataUrl) {
   return new Promise((resolve, reject) => {
     const image = new Image();
     image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("Failed to decode captured screenshot."));
+    image.onerror = () => reject(new Error("Failed to decode screenshot."));
     image.src = dataUrl;
-  });
-}
-
-function canvasToBlob(targetCanvas, type) {
-  return new Promise((resolve, reject) => {
-    targetCanvas.toBlob((blob) => {
-      if (blob) resolve(blob);
-      else reject(new Error("Failed to encode the stitched screenshot."));
-    }, type);
   });
 }
