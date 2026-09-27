@@ -2,12 +2,14 @@
   "manifest_version": 3,
   "name": "AI Chat Full Page Capture",
   "version": "0.2.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwuytPUkOXHrNyGfm9UJPxyym4IjUB0lSzKSL3mfHRdJB3fREaVSYmqku/SA0+Pj2EpwJUvK5+BWyIqrfP9SG7zo6RkFR+2kI7zuyb0KurNTPkTgv48NdWCtt3bHYpNosIg49939WsXkmKeLplfIx8lLCqebT2W5dLBZqj8rkyVMRVRDDOgadFRrbxskMEn4jfNBwSGHbs38gp3EQD0Xt1oFNP/ms1Zei4A8UlVRSgN6IWSmGfjrHR89I7Wrp/8EkmaRSwDOcxtwnrjNog7NDnJCOLBn3ChOWiNuU9uueL1uqpvqe7xxjHjNDAWd/fyqLWND3rNKs2xECO04G2L/2owIDAQAB",
   "description": "Capture the current Chrome page from top to bottom and copy it directly to the clipboard. No file is saved.",
   "permissions": [
     "activeTab",
     "scripting",
     "offscreen",
-    "clipboardWrite"
+    "clipboardWrite",
+    "nativeMessaging"
   ],
   "background": {
     "service_worker": "background.js"
@@ -22,6 +24,13 @@
         "mac": "Alt+Shift+P"
       },
       "description": "Capture full page to clipboard"
+    },
+    "capture-full-page-and-paste": {
+      "suggested_key": {
+        "default": "Alt+Shift+Y",
+        "mac": "Alt+Shift+Y"
+      },
+      "description": "Capture full page and paste the PNG into the focused Chrome input"
     }
   },
   "minimum_chrome_version": "116"

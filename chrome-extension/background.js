@@ -3,15 +3,17 @@ const OFFSCREEN_PATH = "offscreen.html";
 const CAPTURE_INTERVAL_MS = 550;
 const MAX_STEPS = 200;
 const MAX_DURATION_MS = 240_000;
+const NATIVE_PASTE_HOST = "com.ai_chat_screenshot.full_page_paste";
 let running = false;
 let lastCaptureAt = 0;
 
 chrome.commands.onCommand.addListener((command) => {
-  if (command === "capture-full-page") void runCapture();
+  if (command === "capture-full-page") void runCapture({ pasteAfterCapture: false });
+  if (command === "capture-full-page-and-paste") void runCapture({ pasteAfterCapture: true });
 });
-chrome.action.onClicked.addListener(() => void runCapture());
+chrome.action.onClicked.addListener(() => void runCapture({ pasteAfterCapture: false }));
 
-async function runCapture() {
+async function runCapture({ pasteAfterCapture = false } = {}) {
   if (running) return;
   running = true;
   let tab, documentId, offscreen = false, cancelled = false;
@@ -113,6 +115,11 @@ async function runCapture() {
     const token = crypto.randomUUID();
     const result = await sendOffscreen({ type: "FINISH_CAPTURE", token, tabId: tab.id });
     await copyInPage(token, page, checkActive);
+    if (pasteAfterCapture) {
+      // A tab/window switch after the PNG write must never paste into the new target.
+      await checkActive();
+      await requestNativePaste();
+    }
     await setBadge("✓", `Copied ${result.width} × ${result.height} PNG to clipboard${result.downscaled ? " (large page downscaled)" : ""}`);
   } catch (error) {
     console.error("Full-page capture failed:", error);
@@ -125,6 +132,21 @@ async function runCapture() {
     chrome.tabs.onUpdated.removeListener(onUpdated);
     chrome.windows.onFocusChanged.removeListener(onFocus);
     running = false;
+  }
+}
+
+async function requestNativePaste() {
+  let response;
+  try {
+    response = await chrome.runtime.sendNativeMessage(NATIVE_PASTE_HOST, {
+      type: "paste-full-page-png",
+      protocol: 1
+    });
+  } catch (error) {
+    throw new Error(`PNG was copied, but automatic paste failed: ${error.message}`);
+  }
+  if (!response?.ok) {
+    throw new Error(`PNG was copied, but automatic paste failed: ${response?.error || "native host rejected the request"}`);
   }
 }
 

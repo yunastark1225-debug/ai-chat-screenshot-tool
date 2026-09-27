@@ -5,20 +5,27 @@ page as a single PNG. The toolbar button does the same thing. No result tab,
 preview, download, or automatic paste. The existing `macos/` and `windows/`
 monitor screenshot tools are independent and unchanged.
 
+## Commands
+
+- **Option + Shift + P** — capture the page and copy the PNG. This is the
+  standalone extension command and toolbar-button behavior.
+- **Option + Shift + Y** — macOS Full Page workflow. After a successful PNG
+  clipboard write, it asks the installed native host to paste once into the
+  focused Chrome input. It never submits the input.
+
 ## Install / Stream Deck
 
 1. Use `feature/full-page-capture`, open `chrome://extensions/`, enable **Developer
    mode**, choose **Load unpacked**, and select this `chrome-extension` directory.
    After pulling updates, click the extension's reload button.
 2. In `chrome://extensions/shortcuts`, assign **Capture full page to clipboard**
-   to **Alt + Shift + P** (Option on Mac). Resolve conflicts if Chrome leaves it
-   unassigned. Chrome **116+** is required.
-3. Configure a Stream Deck **Hotkey** action with that same combination. Keep
-   Chrome and the desired tab in the foreground when pressing it. Do not assign
-   the existing D1/D2 screenshot launcher to this button.
-4. Wait for the badge: `…` = working, `✓` = PNG copied, `!` = failed. Hover the
-   extension button for the dimensions or error. Then paste with **Cmd+V** on Mac
-   or **Ctrl+V** on Windows into an image-capable app or AI chat input.
+   to **Alt + Shift + P** (Option on Mac). Chrome **116+** is required.
+3. For the one-button macOS Stream Deck action, follow
+   [`macos/README.md`](../macos/README.md#full-page-one-stream-deck-button).
+   It installs a Native Messaging host and runs the `FullPage_Shot` Shortcut;
+   do not use a Hotkey action for that workflow.
+4. `…` = working, `✓` = PNG copied (and, for Option+Shift+Y, a native paste was
+   acknowledged), `!` = failed. A `!` state never requests automatic paste.
 
 ## Capture behavior
 
@@ -65,8 +72,9 @@ monitor screenshot tools are independent and unchanged.
 - Limit: **200 viewports per pass / 4 minutes overall**. Oversized/endlessly
   growing pages fail; they are not silently truncated. Clipboard transfer has a
   separate 30-second timeout. Downscaling very long pages reduces text legibility.
-- Windows and macOS use the same Chrome APIs; actual Windows clipboard/Stream Deck
-  testing and normal Chrome shortcut testing remain part of release validation.
+- Automatic paste is currently the macOS Native Messaging workflow. Windows
+  retains its existing D1/D2 workflow; the standalone Option+Shift+P command
+  remains copy-only on every platform.
 
 ## Automated tests
 
@@ -90,7 +98,8 @@ python3 -m http.server 8765 --directory chrome-extension/tests
 ```
 
 1. Open `http://localhost:8765/fixture.html`, scroll to the middle, then press
-   **Option + Shift + P** once. Repeat using the toolbar button and Stream Deck.
+   **Option + Shift + P** once. Repeat using the toolbar button. For the
+   macOS Stream Deck paste flow, use the dedicated `FullPage_Shot` Shortcut.
 2. Wait for `✓`. Confirm the original scroll position, sticky behavior and magenta
    fixed overlay return. No tabs, preview windows, or downloaded files should appear.
 3. Paste into Preview with **File → New from Clipboard** and into the intended
