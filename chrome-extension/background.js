@@ -92,13 +92,26 @@ async function captureBands(tabId, content, viewport, checkActive) {
       content.width <= 0 || content.height <= 0 || viewport.width <= 0 || viewport.height <= 0) {
     throw new Error("Chrome did not return valid page dimensions.");
   }
-  const bandHeight = Math.max(1, Math.floor(viewport.height) - BAND_SAFETY_MARGIN_CSS_PX);
+  const maxCaptureHeight = Math.max(1, Math.floor(viewport.height) - BAND_SAFETY_MARGIN_CSS_PX);
+  const normalCoreHeight = maxCaptureHeight - BAND_GUARD_CSS_PX * 2;
+  if (normalCoreHeight <= 0) throw new Error("Viewport is too short for guarded full-page capture.");
   const bands = [];
-  for (let y = 0; y < content.height; y += bandHeight) {
-    const height = Math.min(bandHeight, content.height - y);
-    const captureY = Math.max(0, y - BAND_GUARD_CSS_PX);
-    const captureBottom = Math.min(content.height, y + height + BAND_GUARD_CSS_PX);
-    bands.push({ y, height, captureY, captureHeight: captureBottom - captureY });
+  for (let y = 0; y < content.height;) {
+    const guardTop = y === 0 ? 0 : BAND_GUARD_CSS_PX;
+    const remaining = content.height - y;
+    // The final band needs no bottom guard, so it can use all remaining viewport space.
+    const coreCapacity = remaining <= maxCaptureHeight - guardTop
+      ? maxCaptureHeight - guardTop
+      : normalCoreHeight;
+    const height = Math.min(coreCapacity, remaining);
+    const guardBottom = height === remaining ? 0 : BAND_GUARD_CSS_PX;
+    const captureY = y - guardTop;
+    const captureHeight = guardTop + height + guardBottom;
+    if (captureHeight > viewport.height || captureHeight > maxCaptureHeight) {
+      throw new Error("Guarded band exceeds the viewport capture limit.");
+    }
+    bands.push({ y, height, captureY, captureHeight, guardTop, guardBottom });
+    y += height;
   }
   if (bands.length > MAX_BANDS) throw new Error("Page exceeds the 400-band capture limit.");
 

@@ -68,7 +68,7 @@ function setup(options = {}) {
         const index = captureIndex++;
         const marker = options.repeatBands ? 1 : index + 1;
         const width = Math.round(content.width * viewport.dpr);
-        const firstCaptureHeight = Math.min(content.height, 698 + 32);
+        const firstCaptureHeight = Math.min(content.height, 698);
         const height = options.repeatBands
           ? Math.round(firstCaptureHeight * viewport.dpr)
           : options.invalidBandSize && index === 1
@@ -99,14 +99,14 @@ test('captures a long DPR 2 page as distinct document-coordinate bands without s
   const state = setup();
   await state.run();
   const captures = state.calls.filter(([name, , command]) => name === 'command' && command === 'Page.captureScreenshot');
-  assert.equal(captures.length, 19);
-  assert.deepEqual(captures.map(([, , , parameters]) => parameters.clip.y), [0, ...Array.from({ length: 18 }, (_, index) => (index + 1) * 698 - 32)]);
+  assert.equal(captures.length, 20);
+  assert.deepEqual(captures.map(([, , , parameters]) => parameters.clip.y), [0, ...Array.from({ length: 19 }, (_, index) => 602 + index * 634)]);
   assert.ok(captures.every(([, , , parameters]) => parameters.captureBeyondViewport && parameters.fromSurface));
-  assert.ok(captures.every(([, , , parameters]) => parameters.clip.height <= 764));
-  assert.equal(state.draws.length, 19);
+  assert.ok(captures.every(([, , , parameters]) => parameters.clip.height <= 700));
+  assert.equal(state.draws.length, 20);
   assert.equal(state.draws[0][2], 0, 'first band has no top guard to crop');
   assert.equal(state.draws[1][2], 64, 'second DPR-2 band crops its 32 CSS px top guard');
-  assert.equal(state.draws[1][4], 1396, 'second band keeps only its 698 CSS px output core');
+  assert.equal(state.draws[1][4], 1268, 'second band keeps only its 634 CSS px output core');
   assert.equal(state.calls.some(([name, operation]) => name === 'page' && operation === 'scroll'), false);
   assert.equal(state.badges.at(-1), '✓');
 });
@@ -115,7 +115,7 @@ for (const dpr of [1, 1.25, 1.5, 2, 3]) {
   test(`stitches a 6000+ CSS px page at DPR ${dpr}`, async () => {
     const state = setup({ content: { width: 800, height: 6001 }, viewport: { width: 800, height: 700, dpr } });
     await state.run();
-    assert.equal(state.calls.filter(([name, , command]) => name === 'command' && command === 'Page.captureScreenshot').length, 9);
+    assert.equal(state.calls.filter(([name, , command]) => name === 'command' && command === 'Page.captureScreenshot').length, 10);
     assert.equal(state.badges.at(-1), '✓');
   });
 }

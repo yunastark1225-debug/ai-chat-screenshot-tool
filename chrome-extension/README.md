@@ -12,11 +12,13 @@ independent and unchanged.
 
 The extension temporarily attaches Chrome DevTools Protocol (CDP) to the active
 tab, reads `Page.getLayoutMetrics.cssContentSize`, and divides that CSS document
-into non-overlapping output bands. Each output band is at most
-`window.innerHeight - 2` CSS pixels high. Its CDP clip adds a 32 CSS-pixel guard
-above and below where the page permits; the stitcher crops those guards and uses
-only the central output range. This removes compositor artifacts at clip edges
-without gaps or repeated rows in the final image. Capture uses an absolute
+into non-overlapping output bands. Every CDP clip is at most
+`window.innerHeight - 2` CSS pixels high. A 32 CSS-pixel guard is reserved
+inside that capture range above and below the normal output core, so ordinary
+core bands are `window.innerHeight - 66` CSS pixels high. The first and last
+bands use available edge space without requiring an outside guard. The stitcher
+crops the guards and uses only the central output range, removing compositor
+artifacts at clip edges without gaps or repeated rows. Capture uses an absolute
 document-coordinate `clip`, `fromSurface`, and `captureBeyondViewport`.
 
 The page never scrolls. Each PNG IHDR is checked against its requested band;
