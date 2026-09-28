@@ -19,16 +19,17 @@ and/or Stream Deck. The adjustable `SKIP_CLICK`, `CLICK_X_RATIO`, and
 
 ## Full Page
 
-Full Page captures the active Chrome tab from top to bottom, stitches one PNG,
-and copies it to the clipboard. It does not change tabs, look for an AI chat,
-paste, or send a message.
+Full Page uses Chrome DevTools Protocol to capture the active Chrome tab as one
+PNG without scrolling, then copies it to the clipboard. It does not change tabs,
+look for an AI chat, paste, or send a message.
 
 ### Setup
 
 1. Load or reload `chrome-extension` in `chrome://extensions`.
 2. In `chrome://extensions/shortcuts`, assign **Capture full page to clipboard**
    to **Option + Shift + P**.
-3. In Stream Deck, create a **Hotkey** action that sends **Option + Shift + P**.
+3. Approve Chrome's debugger-access prompt when it appears.
+4. In Stream Deck, create a **Hotkey** action that sends **Option + Shift + P**.
    This invokes the Chrome extension command, not the macOS screenshot tool.
 
 No native host, Python setup, Screen Recording permission, or Accessibility
@@ -51,11 +52,10 @@ capture failed and the clipboard was not replaced.
 1. Test short and long pages, then paste the result manually into an
    image-capable app. Confirm no new tab, preview, download, or automatic paste
    appears.
-2. Test lazy images, sticky navigation, fixed overlays, and a Retina display.
-   Confirm the bottom appears once and fixed overlays are omitted.
-3. Confirm the source page returns to its original scroll position.
-4. During capture, switch tabs or resize Chrome. Each case must show `!` and
-   must not change the clipboard.
+2. Test fixed/sticky content and a Retina display. Confirm their positions match
+   Chrome's one-shot full-page rendering.
+3. Confirm the source page never scrolls during capture.
+4. During capture, switch tabs. It must show `!` and not change the clipboard.
 5. Press Full Page twice rapidly. There should be one capture.
 6. Run D1 and D2 once to confirm their capture-and-paste behavior is unchanged.
 

@@ -6,8 +6,8 @@
   "permissions": [
     "activeTab",
     "scripting",
-    "offscreen",
-    "clipboardWrite"
+    "clipboardWrite",
+    "debugger"
   ],
   "background": {
     "service_worker": "background.js"
