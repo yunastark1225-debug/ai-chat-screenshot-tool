@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "AI Chat Full Page Capture",
+  "version": "0.2.0",
+  "description": "Capture the current Chrome page from top to bottom and copy it directly to the clipboard. No file is saved.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "clipboardWrite",
+    "debugger"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Capture full page to clipboard"
+  },
+  "commands": {
+    "capture-full-page": {
+      "suggested_key": {
+        "default": "Alt+Shift+P",
+        "mac": "Alt+Shift+P"
+      },
+      "description": "Capture full page to clipboard"
+    }
+  },
+  "minimum_chrome_version": "116"
+}
