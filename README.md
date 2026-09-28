@@ -13,7 +13,7 @@ No screenshot image is saved to disk.
 - Clipboard-only workflow — screenshots are not saved to disk
 - Automatic paste into Google Chrome
 - Dedicated D1 / D2 workflow for multi-display setups
-- Dedicated macOS Full Page workflow for Chrome page capture and automatic paste
+- Chrome Full Page capture to a single clipboard PNG
 - Stream Deck integration
 - Windows and macOS support
 - Custom Stream Deck icons included
@@ -23,7 +23,7 @@ No screenshot image is saved to disk.
 | Platform | Implementation | Launchers |
 | --- | --- | --- |
 | Windows | Python + batch files | Monitor 1 / Monitor 2 |
-| macOS | Shortcuts + AppleScript + Chrome Native Messaging | D1 / D2 / Full Page |
+| macOS | Shortcuts + AppleScript / Chrome extension | D1 / D2 / Full Page |
 
 ## Repository structure
 
@@ -52,9 +52,10 @@ Both implementations are used with Stream Deck in daily operation.
 
 - On Windows, the batch files can be assigned directly to Stream Deck buttons.
 - On macOS, each AppleScript is run through a macOS Shortcut, and the corresponding shortcut is assigned to a Stream Deck D1 or D2 button.
-- For **Full Page** on macOS, use the dedicated `FullPage_Shot` Shortcut and the
-  Native Messaging setup in the macOS guide. It waits for Chrome's success
-  signal before pasting and never sends the chat message.
+- For **Full Page**, load the Chrome extension, assign **Option + Shift + P** in
+  `chrome://extensions/shortcuts`, then use one Stream Deck Hotkey action that
+  sends that shortcut. It copies a full-page PNG only; paste it manually where
+  needed after the extension badge shows `✓`.
 
 Custom D1 and D2 icons for Stream Deck are included in the `assets/` directory.
 

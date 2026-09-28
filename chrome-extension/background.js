@@ -3,18 +3,15 @@ const OFFSCREEN_PATH = "offscreen.html";
 const CAPTURE_INTERVAL_MS = 550;
 const MAX_STEPS = 200;
 const MAX_DURATION_MS = 240_000;
-const NATIVE_PASTE_HOST = "com.ai_chat_screenshot.full_page_paste";
 let running = false;
 let lastCaptureAt = 0;
 
 chrome.commands.onCommand.addListener((command) => {
-  if (command === "capture-full-page") void runCapture({ pasteAfterCapture: false });
-  if (command === "capture-full-page-and-paste") void runCapture({ pasteAfterCapture: true });
-  if (command === "set-paste-target") void setPasteTarget();
+  if (command === "capture-full-page") void runCapture();
 });
-chrome.action.onClicked.addListener(() => void runCapture({ pasteAfterCapture: false }));
+chrome.action.onClicked.addListener(() => void runCapture());
 
-async function runCapture({ pasteAfterCapture = false } = {}) {
+async function runCapture() {
   if (running) return;
   running = true;
   let tab, documentId, offscreen = false, cancelled = false;
@@ -120,12 +117,6 @@ async function runCapture({ pasteAfterCapture = false } = {}) {
     const token = crypto.randomUUID();
     const result = await sendOffscreen({ type: "FINISH_CAPTURE", token, tabId: tab.id });
     await copyInPage(token, page, checkActive);
-    if (pasteAfterCapture) {
-      // A tab/window switch after the PNG write must never paste into the new target.
-      await checkActive();
-      await restorePasteTarget(tab);
-      await requestNativePaste();
-    }
     await setBadge("✓", `Copied ${result.width} × ${result.height} PNG to clipboard${result.downscaled ? " (large page downscaled)" : ""}`);
   } catch (error) {
     console.error("Full-page capture failed:", error);
@@ -141,65 +132,6 @@ async function runCapture({ pasteAfterCapture = false } = {}) {
     running = false;
   }
 }
-
-async function setPasteTarget() {
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab?.id == null || tab.windowId == null) {
-      throw new Error("No active Chrome tab is available to save as the paste target.");
-    }
-    await chrome.storage.local.set({
-      pasteTarget: { windowId: tab.windowId, tabId: tab.id }
-    });
-    await setBadge("T", "Full Page paste target tab saved");
-  } catch (error) {
-    await setBadge("!", error?.message || "Could not save paste target");
-  }
-}
-
-async function restorePasteTarget(sourceTab) {
-  const { pasteTarget: target } = await chrome.storage.local.get("pasteTarget");
-  if (!target?.tabId || !target?.windowId) {
-    throw new Error("PNG was copied, but no paste target tab is set. Open ChatGPT and press Option+Shift+T once.");
-  }
-  if (target.tabId === sourceTab.id) {
-    throw new Error("PNG was copied, but the paste target is the capture tab. Choose a different AI chat tab with Option+Shift+T.");
-  }
-  let targetTab;
-  try {
-    targetTab = await chrome.tabs.get(target.tabId);
-  } catch (_) {
-    throw new Error("PNG was copied, but the saved paste target tab no longer exists. Set it again with Option+Shift+T.");
-  }
-  if (targetTab.windowId !== target.windowId) {
-    throw new Error("PNG was copied, but the saved paste target window no longer exists. Set the target again with Option+Shift+T.");
-  }
-  try {
-    await chrome.windows.update(target.windowId, { focused: true });
-    await chrome.tabs.update(target.tabId, { active: true });
-    const [active] = await chrome.tabs.query({ active: true, windowId: target.windowId });
-    if (active?.id !== target.tabId) throw new Error("Chrome did not activate the saved paste target.");
-  } catch (error) {
-    throw new Error(`PNG was copied, but automatic paste was cancelled: ${error.message}`);
-  }
-  return target;
-}
-
-async function requestNativePaste() {
-  let response;
-  try {
-    response = await chrome.runtime.sendNativeMessage(NATIVE_PASTE_HOST, {
-      type: "paste-full-page-png",
-      protocol: 1
-    });
-  } catch (error) {
-    throw new Error(`PNG was copied, but automatic paste failed: ${error.message}`);
-  }
-  if (!response?.ok) {
-    throw new Error(`PNG was copied, but automatic paste failed: ${response?.error || "native host rejected the request"}`);
-  }
-}
-
 
 function assertGeometry(expected, actual, position = false) {
   const keys = ["totalHeight", "viewportWidth", "viewportHeight", "screenshotHeight", "contentWidth", "dpr", "layoutVersion"];
