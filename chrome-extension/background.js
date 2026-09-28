@@ -1,6 +1,8 @@
 const OFFSCREEN_PATH = "offscreen.html";
 // Chrome permits at most two captureVisibleTab calls per second.
 const CAPTURE_INTERVAL_MS = 550;
+// Keep adjacent viewports overlapping so browser scroll rounding cannot create seams.
+const TILE_OVERLAP_CSS_PX = 4;
 const MAX_STEPS = 200;
 const MAX_DURATION_MS = 240_000;
 let running = false;
@@ -90,7 +92,10 @@ async function runCapture() {
         for (let step = 0; covered < baseline.totalHeight; step++) {
           if (step >= MAX_STEPS) throw new Error("Page exceeds 200 viewports.");
           await checkActive();
-          const position = Math.min(covered, Math.max(0, baseline.totalHeight - baseline.viewportHeight));
+          const position = Math.min(
+            Math.max(0, covered - TILE_OVERLAP_CSS_PX),
+            Math.max(0, baseline.totalHeight - baseline.viewportHeight)
+          );
           const before = await page("scroll", position);
           assertGeometry(baseline, before);
           if (before.scrollY > covered || before.scrollY + before.viewportHeight <= covered) throw new Error("Page scrolling left a gap in the capture.");

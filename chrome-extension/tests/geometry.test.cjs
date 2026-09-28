@@ -29,6 +29,14 @@ test('overlapping final tile crops the already captured rows', () => {
     sy: 1400, sh: 200, dy: 3200, dh: 200, bottom: 1700
   });
 });
+test('a subpixel scroll position inside the overlap crops at the measured position', () => {
+  const tile = tileRect({ totalHeight: 2400, coveredCssY: 800 }, 798.25, 800, 1000, 3000);
+  assert.equal(tile.sy, 2.1875);
+  assert.equal(tile.sh, 997.8125);
+  assert.equal(tile.dy, 1000);
+  assert.equal(tile.dh, 998);
+  assert.equal(tile.bottom, 1598.25);
+});
 test('refuses gaps and repeated tiles', () => {
   assert.throws(() => tileRect({ totalHeight: 2000, coveredCssY: 800 }, 801, 800, 1600, 4000));
   assert.throws(() => tileRect({ totalHeight: 2000, coveredCssY: 800 }, 0, 800, 1600, 4000));

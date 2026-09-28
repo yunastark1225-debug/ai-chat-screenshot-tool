@@ -16,7 +16,7 @@ function setup(options = {}) {
   let activeId = 1;
   let y = 0;
   let now = 1000;
-  let height = 1700;
+  let height = options.height || 1700;
   let captures = 0;
   let resized = false;
   const metrics = () => ({
@@ -73,7 +73,10 @@ function setup(options = {}) {
         if (operation === 'clipboardFinish' && options.failClipboardWrite) {
           return [{ result: { ok: false, error: 'Clipboard denied' } }];
         }
-        if (operation === 'scroll') y = Math.max(0, Math.min(value, height - 800));
+        if (operation === 'scroll') {
+          const overshoot = options.slightScrollOvershoot && value > 0 ? 2 : 0;
+          y = Math.max(0, Math.min(value + overshoot, height - 800));
+        }
         return [{ result: { ok: true, value: metrics() } }];
       }
     },
@@ -115,7 +118,7 @@ function setup(options = {}) {
 test('successful run stitches overlapping final tiles, restores, and copies once', async () => {
   const state = setup();
   await state.run();
-  assert.deepEqual(state.calls.filter(([name]) => /^(INIT|ADD)_CAPTURE$/.test(name)).map(([, y]) => y), [0, 800, 900]);
+  assert.deepEqual(state.calls.filter(([name]) => /^(INIT|ADD)_CAPTURE$/.test(name)).map(([, y]) => y), [0, 796, 900]);
   assert.equal(state.calls.filter(([name]) => name === 'FINISH_CAPTURE').length, 1);
   assert.equal(state.calls.filter(([name]) => name === 'clipboardBegin').length, 1);
   assert.equal(state.calls.filter(([name]) => name === 'clipboardChunk').length, 1);
@@ -124,6 +127,19 @@ test('successful run stitches overlapping final tiles, restores, and copies once
   assert.ok(times.slice(1).every((time, index) => time - times[index] >= 550));
   assert.equal(state.badges.at(-1), '✓');
   assert.equal(state.calls.at(-1)[0], 'close');
+});
+
+test('a long article tolerates a small scroll overshoot within the overlap', async () => {
+  const state = setup({ height: 12573, slightScrollOvershoot: true });
+  await state.run();
+  const tiles = state.calls.filter(([name]) => /^(INIT|ADD)_CAPTURE$/.test(name)).map(([, y]) => y);
+  assert.ok(tiles.length > 10, 'uses continuous tiles for a long article');
+  assert.equal(tiles[0], 0);
+  for (let index = 1; index < tiles.length; index++) {
+    assert.ok(tiles[index] <= tiles[index - 1] + 800, `tile ${index} has no gap from tile ${index - 1}`);
+  }
+  assert.equal(state.calls.filter(([name]) => name === 'FINISH_CAPTURE').length, 1);
+  assert.equal(state.badges.at(-1), '✓');
 });
 
 test('double invocation produces one clipboard image', async () => {

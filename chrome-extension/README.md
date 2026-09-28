@@ -33,8 +33,9 @@ independent and unchanged.
   headers, footers, and floating chat buttons, are omitted so they cannot repeat
   or cover content. Styles and CSS priorities are restored afterwards.
 - Actual screenshot dimensions determine pixel scale for Retina displays and
-  zoom. The final overlapping tile is cropped and shared edges are rounded
-  consistently. Scrollbar gutters are excluded from output.
+  zoom. Adjacent tiles overlap by 4 CSS pixels; actual measured scroll positions
+  crop that overlap, and shared edges are rounded consistently. Scrollbar
+  gutters are excluded from output.
 - Large output is proportionally downscaled to at most **16,384 px per side**
   and **32 million pixels**. PNG encoding and clipboard failures are reported.
 - An offscreen document stitches the PNG. It returns bounded PNG chunks to the
