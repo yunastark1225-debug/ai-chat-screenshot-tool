@@ -11,9 +11,11 @@ independent and unchanged.
 ## How capture works
 
 The extension temporarily attaches Chrome DevTools Protocol (CDP) to the active
-tab. It reads `Page.getLayoutMetrics.cssContentSize`, asks Chrome for exactly
-one `Page.captureScreenshot` PNG with `fromSurface` and `captureBeyondViewport`,
-and writes that PNG as an `image/png` `ClipboardItem` in the focused page.
+tab and asks Chrome for exactly one `Page.captureScreenshot` PNG with
+`fromSurface` and `captureBeyondViewport`. It deliberately does not provide a
+`clip`, matching DevTools' full-size screenshot behavior. The returned PNG IHDR
+supplies the displayed dimensions, and the PNG is written as an `image/png`
+`ClipboardItem` in the focused page.
 
 No page scrolling, tile capture, stitching, lazy-load scrolling, scroll
 restoration, or layout-shift tile checks are used. Immediately before CDP

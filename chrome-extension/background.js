@@ -49,28 +49,32 @@ async function runCapture() {
     normalized = true;
     await page("prepare");
 
-    await chrome.debugger.attach({ tabId: tab.id }, CDP_VERSION);
-    attached = true;
-    const metrics = await chrome.debugger.sendCommand({ tabId: tab.id }, "Page.getLayoutMetrics");
-    const size = metrics.cssContentSize;
-    if (!size || !Number.isFinite(size.width) || !Number.isFinite(size.height) || size.width <= 0 || size.height <= 0) {
-      throw new Error("Chrome did not return a valid page size.");
+    let screenshot;
+    try {
+      await chrome.debugger.attach({ tabId: tab.id }, CDP_VERSION);
+      attached = true;
+      screenshot = await chrome.debugger.sendCommand({ tabId: tab.id }, "Page.captureScreenshot", {
+        format: "png",
+        fromSurface: true,
+        captureBeyondViewport: true
+      });
+      if (!screenshot?.data) throw new Error("Chrome did not return a PNG.");
+    } finally {
+      try {
+        if (normalized) {
+          await page("restore");
+          normalized = false;
+        }
+      } finally {
+        if (attached) await chrome.debugger.detach({ tabId: tab.id });
+        attached = false;
+      }
     }
-    const screenshot = await chrome.debugger.sendCommand({ tabId: tab.id }, "Page.captureScreenshot", {
-      format: "png",
-      fromSurface: true,
-      captureBeyondViewport: true,
-      clip: { x: 0, y: 0, width: size.width, height: size.height, scale: 1 }
-    });
-    if (!screenshot?.data) throw new Error("Chrome did not return a PNG.");
-    await page("restore");
-    normalized = false;
-    await chrome.debugger.detach({ tabId: tab.id });
-    attached = false;
 
     await checkActive();
     await copyBase64PngInPage(screenshot.data, page, checkActive);
-    await setBadge("✓", `Copied ${Math.round(size.width)} × ${Math.round(size.height)} PNG to clipboard`);
+    const size = pngDimensions(screenshot.data);
+    await setBadge("✓", `Copied ${size.width} × ${size.height} PNG to clipboard`);
   } catch (error) {
     console.error("Full-page capture failed:", error);
     await setBadge("!", error?.message || "Capture failed");
@@ -93,6 +97,20 @@ async function copyBase64PngInPage(base64, page, checkActive) {
   } finally {
     await page("clipboardDiscard").catch(() => {});
   }
+}
+
+function pngDimensions(base64) {
+  const bytes = Uint8Array.from(atob(base64.slice(0, 32)), (char) => char.charCodeAt(0));
+  const signature = [137, 80, 78, 71, 13, 10, 26, 10];
+  if (bytes.length < 24 || !signature.every((value, index) => bytes[index] === value) ||
+      String.fromCharCode(...bytes.slice(12, 16)) !== "IHDR") {
+    throw new Error("Chrome returned an invalid PNG.");
+  }
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const width = view.getUint32(16);
+  const height = view.getUint32(20);
+  if (!width || !height) throw new Error("Chrome returned an invalid PNG size.");
+  return { width, height };
 }
 
 async function setBadge(text, title) {

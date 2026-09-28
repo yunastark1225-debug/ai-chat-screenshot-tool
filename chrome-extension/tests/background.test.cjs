@@ -10,12 +10,21 @@ const event = () => ({
   removeListener(fn) { this.listeners = this.listeners.filter((item) => item !== fn); }
 });
 
+function pngBase64(width, height, padding = 0) {
+  const bytes = Buffer.alloc(24 + padding);
+  Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).copy(bytes, 0);
+  bytes.writeUInt32BE(13, 8);
+  bytes.write('IHDR', 12);
+  bytes.writeUInt32BE(width, 16);
+  bytes.writeUInt32BE(height, 20);
+  return bytes.toString('base64');
+}
+
 function setup(options = {}) {
   const calls = [];
   const badges = [];
   let activeId = 1;
-  const size = options.size || { width: 1250, height: 12573 };
-  const base64 = options.base64 || 'aGVsbG8=';
+  const base64 = options.base64 || pngBase64(1250, 12573);
   const chrome = {
     commands: { onCommand: event() },
     action: {
@@ -49,7 +58,6 @@ function setup(options = {}) {
       },
       sendCommand: async (target, command, parameters) => {
         calls.push(['command', target, command, parameters]);
-        if (command === 'Page.getLayoutMetrics') return { cssContentSize: size };
         if (options.failScreenshot) throw new Error('Screenshot failed');
         if (options.switchTabDuringCapture) activeId = 2;
         return { data: base64 };
@@ -60,20 +68,20 @@ function setup(options = {}) {
   const context = vm.createContext({
     chrome,
     console: { error() {} },
-    Date: { now: () => 1000 }
+    Date: { now: () => 1000 },
+    atob
   });
   vm.runInContext(code, context);
   return { run: () => vm.runInContext('runCapture()', context), calls, badges };
 }
 
-test('captures a long DPR/zoom page with one CDP screenshot and copies its PNG', async () => {
-  const state = setup({ size: { width: 1250.5, height: 12573.25 }, base64: 'a'.repeat(300000) });
+test('captures a long DPR/zoom page with one un-clipped CDP screenshot and copies its PNG', async () => {
+  const state = setup({ base64: pngBase64(2501, 25146, 300000) });
   await state.run();
   const commands = state.calls.filter(([name]) => name === 'command');
-  assert.deepEqual(commands.map(([, , command]) => command), ['Page.getLayoutMetrics', 'Page.captureScreenshot']);
-  assert.deepEqual(JSON.parse(JSON.stringify(commands[1][3])), {
-    format: 'png', fromSurface: true, captureBeyondViewport: true,
-    clip: { x: 0, y: 0, width: 1250.5, height: 12573.25, scale: 1 }
+  assert.deepEqual(commands.map(([, , command]) => command), ['Page.captureScreenshot']);
+  assert.deepEqual(JSON.parse(JSON.stringify(commands[0][3])), {
+    format: 'png', fromSurface: true, captureBeyondViewport: true
   });
   assert.equal(state.calls.filter(([name]) => name === 'attach').length, 1);
   assert.equal(state.calls.filter(([name]) => name === 'detach').length, 1);
@@ -87,10 +95,10 @@ test('captures a long DPR/zoom page with one CDP screenshot and copies its PNG',
 });
 
 test('captures a short page with one full-page CDP request', async () => {
-  const state = setup({ size: { width: 800, height: 600 } });
+  const state = setup({ base64: pngBase64(800, 600) });
   await state.run();
   const screenshot = state.calls.find(([name, , command]) => name === 'command' && command === 'Page.captureScreenshot');
-  assert.deepEqual(JSON.parse(JSON.stringify(screenshot[3].clip)), { x: 0, y: 0, width: 800, height: 600, scale: 1 });
+  assert.equal('clip' in screenshot[3], false);
   assert.equal(state.badges.at(-1), '✓');
 });
 
@@ -121,7 +129,7 @@ test('normalization failure still requests CSS restoration', async () => {
 
 for (const [name, options] of [
   ['captureScreenshot failure', { failScreenshot: true }],
-  ['very long screenshot failure', { size: { width: 1200, height: 500000 }, failScreenshot: true }],
+  ['very long screenshot failure', { base64: pngBase64(1200, 500000), failScreenshot: true }],
   ['clipboard failure', { failClipboard: true }],
   ['tab switch after capture', { switchTabDuringCapture: true }]
 ]) {
