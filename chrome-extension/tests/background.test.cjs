@@ -68,7 +68,10 @@ function setup(options = {}) {
         const index = captureIndex++;
         const marker = options.repeatBands ? 1 : index + 1;
         const width = Math.round(content.width * viewport.dpr);
-        const height = options.invalidBandSize && index === 1
+        const firstCaptureHeight = Math.min(content.height, 698 + 32);
+        const height = options.repeatBands
+          ? Math.round(firstCaptureHeight * viewport.dpr)
+          : options.invalidBandSize && index === 1
           ? 1
           : Math.round(parameters.clip.height * viewport.dpr);
         return { data: pngBase64(width, height, marker) };
@@ -97,10 +100,13 @@ test('captures a long DPR 2 page as distinct document-coordinate bands without s
   await state.run();
   const captures = state.calls.filter(([name, , command]) => name === 'command' && command === 'Page.captureScreenshot');
   assert.equal(captures.length, 19);
-  assert.deepEqual(captures.map(([, , , parameters]) => parameters.clip.y), Array.from({ length: 19 }, (_, index) => index * 698));
+  assert.deepEqual(captures.map(([, , , parameters]) => parameters.clip.y), [0, ...Array.from({ length: 18 }, (_, index) => (index + 1) * 698 - 32)]);
   assert.ok(captures.every(([, , , parameters]) => parameters.captureBeyondViewport && parameters.fromSurface));
-  assert.ok(captures.every(([, , , parameters]) => parameters.clip.height <= 700));
+  assert.ok(captures.every(([, , , parameters]) => parameters.clip.height <= 764));
   assert.equal(state.draws.length, 19);
+  assert.equal(state.draws[0][2], 0, 'first band has no top guard to crop');
+  assert.equal(state.draws[1][2], 64, 'second DPR-2 band crops its 32 CSS px top guard');
+  assert.equal(state.draws[1][4], 1396, 'second band keeps only its 698 CSS px output core');
   assert.equal(state.calls.some(([name, operation]) => name === 'page' && operation === 'scroll'), false);
   assert.equal(state.badges.at(-1), '✓');
 });

@@ -1,5 +1,6 @@
 const CDP_VERSION = "1.3";
 const BAND_SAFETY_MARGIN_CSS_PX = 2;
+const BAND_GUARD_CSS_PX = 32;
 const MAX_BANDS = 400;
 const MAX_DURATION_MS = 240_000;
 const MAX_DIMENSION = 16_384;
@@ -94,7 +95,10 @@ async function captureBands(tabId, content, viewport, checkActive) {
   const bandHeight = Math.max(1, Math.floor(viewport.height) - BAND_SAFETY_MARGIN_CSS_PX);
   const bands = [];
   for (let y = 0; y < content.height; y += bandHeight) {
-    bands.push({ y, height: Math.min(bandHeight, content.height - y) });
+    const height = Math.min(bandHeight, content.height - y);
+    const captureY = Math.max(0, y - BAND_GUARD_CSS_PX);
+    const captureBottom = Math.min(content.height, y + height + BAND_GUARD_CSS_PX);
+    bands.push({ y, height, captureY, captureHeight: captureBottom - captureY });
   }
   if (bands.length > MAX_BANDS) throw new Error("Page exceeds the 400-band capture limit.");
 
@@ -110,20 +114,20 @@ async function captureBands(tabId, content, viewport, checkActive) {
       format: "png",
       fromSurface: true,
       captureBeyondViewport: true,
-      clip: { x: 0, y: band.y, width: content.width, height: band.height, scale: 1 }
+      clip: { x: 0, y: band.captureY, width: content.width, height: band.captureHeight, scale: 1 }
     });
     if (!screenshot?.data) throw new Error(`Chrome did not return PNG data for band ${index + 1}.`);
     if (screenshot.data === previousData) throw new Error(`Band ${index + 1} repeats the previous viewport; capture cancelled.`);
     previousData = screenshot.data;
     const dimensions = pngDimensions(screenshot.data);
     const dprWidth = Math.round(content.width * viewport.dpr);
-    const dprHeight = Math.round(band.height * viewport.dpr);
+    const dprHeight = Math.round(band.captureHeight * viewport.dpr);
     if (Math.abs(dimensions.width - dprWidth) > 2 || Math.abs(dimensions.height - dprHeight) > 2) {
       throw new Error(`Band ${index + 1} does not match its requested document region; capture cancelled.`);
     }
     if (!canvas) {
       sourceScaleX = dimensions.width / content.width;
-      sourceScaleY = dimensions.height / band.height;
+      sourceScaleY = dimensions.height / band.captureHeight;
       if (!Number.isFinite(sourceScaleX) || !Number.isFinite(sourceScaleY) || sourceScaleX <= 0 || sourceScaleY <= 0) {
         throw new Error("Chrome returned invalid band pixel dimensions.");
       }
@@ -133,15 +137,17 @@ async function captureBands(tabId, content, viewport, checkActive) {
       if (!context) throw new Error("Canvas is unavailable for PNG stitching.");
     } else {
       const expectedWidth = Math.round(content.width * sourceScaleX);
-      const expectedHeight = Math.round(band.height * sourceScaleY);
+      const expectedHeight = Math.round(band.captureHeight * sourceScaleY);
       if (Math.abs(dimensions.width - expectedWidth) > 2 || Math.abs(dimensions.height - expectedHeight) > 2) {
         throw new Error(`Band ${index + 1} has an unexpected PNG size; capture cancelled.`);
       }
     }
     const image = await createImageBitmap(base64ToBlob(screenshot.data));
+    const sourceTop = Math.round((band.y - band.captureY) * dimensions.height / band.captureHeight);
+    const sourceBottom = Math.round((band.y - band.captureY + band.height) * dimensions.height / band.captureHeight);
     const top = Math.round(band.y * output.height / content.height);
     const bottom = Math.round((band.y + band.height) * output.height / content.height);
-    context.drawImage(image, 0, 0, dimensions.width, dimensions.height, 0, top, output.width, bottom - top);
+    context.drawImage(image, 0, sourceTop, dimensions.width, sourceBottom - sourceTop, 0, top, output.width, bottom - top);
     image.close?.();
   }
   return { ...output, bands: bands.length, blob: await canvas.convertToBlob({ type: "image/png" }) };
