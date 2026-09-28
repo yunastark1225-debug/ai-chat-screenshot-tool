@@ -50,6 +50,10 @@
     animationStyle = null;
   }
 
+  function viewport() {
+    return { width: innerWidth, height: innerHeight, dpr: devicePixelRatio };
+  }
+
   function clipboardBegin() { clipboardChunks = []; }
   function clipboardChunk(base64) {
     const binary = atob(base64);
@@ -65,5 +69,5 @@
     await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
   }
   function clipboardDiscard() { clipboardChunks = []; }
-  globalThis.__aicClipboard = { prepare, restore, clipboardBegin, clipboardChunk, clipboardFinish, clipboardDiscard };
+  globalThis.__aicClipboard = { prepare, restore, viewport, clipboardBegin, clipboardChunk, clipboardFinish, clipboardDiscard };
 })();

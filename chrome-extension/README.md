@@ -11,14 +11,20 @@ independent and unchanged.
 ## How capture works
 
 The extension temporarily attaches Chrome DevTools Protocol (CDP) to the active
-tab and asks Chrome for exactly one `Page.captureScreenshot` PNG with
-`fromSurface` and `captureBeyondViewport`. It deliberately does not provide a
-`clip`, matching DevTools' full-size screenshot behavior. The returned PNG IHDR
-supplies the displayed dimensions, and the PNG is written as an `image/png`
-`ClipboardItem` in the focused page.
+tab, reads `Page.getLayoutMetrics.cssContentSize`, and divides that CSS document
+into non-overlapping bands. Each band is at most `window.innerHeight - 2` CSS
+pixels high and is captured with `Page.captureScreenshot` using an absolute
+document-coordinate `clip`, `fromSurface`, and `captureBeyondViewport`.
 
-No page scrolling, tile capture, stitching, lazy-load scrolling, scroll
-restoration, or layout-shift tile checks are used. Immediately before CDP
+The page never scrolls. Each PNG IHDR is checked against its requested band;
+repeated consecutive PNG data and unexpected band dimensions fail the capture.
+The service worker uses `OffscreenCanvas` to stitch the measured PNG bands,
+downscaling only when the final canvas would exceed 16,384 pixels on a side or
+32 million pixels. The finished PNG is written as an `image/png` `ClipboardItem`
+in the focused page.
+
+No page scrolling, `captureVisibleTab`, lazy-load scrolling, scroll restoration,
+or layout-shift tile checks are used. Immediately before CDP
 capture, sticky elements are temporarily returned to normal flow and fixed
 elements are hidden with `opacity: 0`; animations and transitions are paused.
 Their inline values and priorities are restored before the debugger detaches,
@@ -46,8 +52,9 @@ on both success and failure.
 - Chrome internal pages, Chrome Web Store, and other debugging-restricted pages
   cannot be captured. `file://` requires **Allow access to file URLs** in
   extension details.
-- Chrome imposes image-size and memory limits. Very long pages may fail in
-  `Page.captureScreenshot` rather than silently producing a truncated image.
+- Chrome imposes image-size and memory limits. Very long pages may fail if they
+  exceed 400 bands; otherwise the final PNG is proportionally downscaled when
+  needed rather than silently truncated.
 - Fixed overlays are omitted and sticky elements are returned to normal flow for
   the one screenshot, preventing Chrome's full-page renderer from repeating
   them. The live page is restored immediately afterwards.
@@ -60,9 +67,9 @@ Run with Node 18 or later:
 node --test chrome-extension/tests/*.test.cjs
 ```
 
-The tests cover short and long pages, DPR/zoom metrics, chunked PNG clipboard
-copy, debugger attach and screenshot failures, tab changes, duplicate shortcut
-presses, and debugger detachment.
+The tests cover short and long pages, DPR 1/1.25/1.5/2/3, band coordinate
+continuity, repeated-band and invalid-dimension guards, chunked PNG clipboard
+copy, debugger failures, tab changes, duplicate shortcut presses, and detach.
 
 ## macOS real-device checklist
 
