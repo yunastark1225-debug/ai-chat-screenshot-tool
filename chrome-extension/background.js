@@ -14,6 +14,7 @@ async function runCapture() {
   let tab;
   let documentId;
   let attached = false;
+  let normalized = false;
   const deadline = Date.now() + MAX_DURATION_MS;
   const checkActive = async () => {
     if (Date.now() > deadline) throw new Error("Full-page capture timed out.");
@@ -45,6 +46,8 @@ async function runCapture() {
     await checkActive();
     const [injection] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["page.js"] });
     documentId = injection.documentId;
+    normalized = true;
+    await page("prepare");
 
     await chrome.debugger.attach({ tabId: tab.id }, CDP_VERSION);
     attached = true;
@@ -60,6 +63,8 @@ async function runCapture() {
       clip: { x: 0, y: 0, width: size.width, height: size.height, scale: 1 }
     });
     if (!screenshot?.data) throw new Error("Chrome did not return a PNG.");
+    await page("restore");
+    normalized = false;
     await chrome.debugger.detach({ tabId: tab.id });
     attached = false;
 
@@ -70,6 +75,7 @@ async function runCapture() {
     console.error("Full-page capture failed:", error);
     await setBadge("!", error?.message || "Capture failed");
   } finally {
+    if (normalized) await page("restore").catch(() => {});
     if (attached && tab?.id != null) await chrome.debugger.detach({ tabId: tab.id }).catch(() => {});
     running = false;
   }

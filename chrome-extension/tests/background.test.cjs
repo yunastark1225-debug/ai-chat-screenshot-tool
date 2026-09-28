@@ -33,6 +33,9 @@ function setup(options = {}) {
         assert.deepEqual(Array.from(request.target.documentIds), ['original-document']);
         const [operation, value] = request.args;
         calls.push(['page', operation, value]);
+        if (operation === 'prepare' && options.failPrepare) {
+          return [{ result: { ok: false, error: 'Normalization failed' } }];
+        }
         if (operation === 'clipboardFinish' && options.failClipboard) {
           return [{ result: { ok: false, error: 'Clipboard denied' } }];
         }
@@ -74,6 +77,9 @@ test('captures a long DPR/zoom page with one CDP screenshot and copies its PNG',
   });
   assert.equal(state.calls.filter(([name]) => name === 'attach').length, 1);
   assert.equal(state.calls.filter(([name]) => name === 'detach').length, 1);
+  const restore = state.calls.findIndex(([name, operation]) => name === 'page' && operation === 'restore');
+  const detach = state.calls.findIndex(([name]) => name === 'detach');
+  assert.ok(restore >= 0 && restore < detach, 'restores page CSS before detaching CDP');
   assert.equal(state.calls.filter(([name, operation]) => name === 'page' && operation === 'clipboardBegin').length, 1);
   assert.equal(state.calls.filter(([name, operation]) => name === 'page' && operation === 'clipboardChunk').length, 2);
   assert.equal(state.calls.filter(([name, operation]) => name === 'page' && operation === 'clipboardFinish').length, 1);
@@ -95,11 +101,21 @@ test('does not capture twice when the shortcut is pressed twice', async () => {
   assert.equal(state.calls.filter(([name, operation]) => name === 'page' && operation === 'clipboardFinish').length, 1);
 });
 
-test('attach failure never starts a clipboard session', async () => {
+test('attach failure restores normalized CSS and never starts a clipboard session', async () => {
   const state = setup({ failAttach: true });
   await state.run();
   assert.equal(state.calls.filter(([name]) => name === 'detach').length, 0);
-  assert.equal(state.calls.some(([name]) => name === 'page'), false);
+  assert.equal(state.calls.filter(([name, operation]) => name === 'page' && operation === 'prepare').length, 1);
+  assert.equal(state.calls.filter(([name, operation]) => name === 'page' && operation === 'restore').length, 1);
+  assert.equal(state.calls.some(([name, operation]) => name === 'page' && operation === 'clipboardBegin'), false);
+  assert.equal(state.badges.at(-1), '!');
+});
+
+test('normalization failure still requests CSS restoration', async () => {
+  const state = setup({ failPrepare: true });
+  await state.run();
+  assert.equal(state.calls.filter(([name]) => name === 'attach').length, 0);
+  assert.equal(state.calls.filter(([name, operation]) => name === 'page' && operation === 'restore').length, 1);
   assert.equal(state.badges.at(-1), '!');
 });
 
@@ -113,6 +129,7 @@ for (const [name, options] of [
     const state = setup(options);
     await state.run();
     assert.equal(state.calls.filter(([call]) => call === 'detach').length, 1);
+    assert.equal(state.calls.filter(([call, operation]) => call === 'page' && operation === 'restore').length, 1);
     assert.equal(state.badges.at(-1), '!');
   });
 }

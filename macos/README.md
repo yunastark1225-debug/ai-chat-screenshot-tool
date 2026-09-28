@@ -52,8 +52,8 @@ capture failed and the clipboard was not replaced.
 1. Test short and long pages, then paste the result manually into an
    image-capable app. Confirm no new tab, preview, download, or automatic paste
    appears.
-2. Test fixed/sticky content and a Retina display. Confirm their positions match
-   Chrome's one-shot full-page rendering.
+2. Test fixed/sticky content and a Retina display. Confirm fixed overlays are
+   absent from the PNG, sticky content is not repeated, and page styles restore.
 3. Confirm the source page never scrolls during capture.
 4. During capture, switch tabs. It must show `!` and not change the clipboard.
 5. Press Full Page twice rapidly. There should be one capture.

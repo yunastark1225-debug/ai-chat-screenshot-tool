@@ -16,8 +16,11 @@ one `Page.captureScreenshot` PNG with `fromSurface` and `captureBeyondViewport`,
 and writes that PNG as an `image/png` `ClipboardItem` in the focused page.
 
 No page scrolling, tile capture, stitching, lazy-load scrolling, scroll
-restoration, fixed/sticky style changes, or layout-shift tile checks are used.
-The debugger is detached after both success and failure.
+restoration, or layout-shift tile checks are used. Immediately before CDP
+capture, sticky elements are temporarily returned to normal flow and fixed
+elements are hidden with `opacity: 0`; animations and transitions are paused.
+Their inline values and priorities are restored before the debugger detaches,
+on both success and failure.
 
 ## Install and Stream Deck
 
@@ -43,8 +46,9 @@ The debugger is detached after both success and failure.
   extension details.
 - Chrome imposes image-size and memory limits. Very long pages may fail in
   `Page.captureScreenshot` rather than silently producing a truncated image.
-- Fixed and sticky elements are rendered by Chrome's single CDP capture; this
-  extension does not alter their page styles.
+- Fixed overlays are omitted and sticky elements are returned to normal flow for
+  the one screenshot, preventing Chrome's full-page renderer from repeating
+  them. The live page is restored immediately afterwards.
 
 ## Automated tests
 
@@ -65,8 +69,9 @@ presses, and debugger detachment.
    PNG into Preview (**File → New from Clipboard**).
 2. Repeat at Chrome zoom **80%, 100%, 125%** on a Retina display. Confirm the
    image covers the entire page and remains sharp enough for the chosen zoom.
-3. Test a page with fixed and sticky elements. Confirm their rendered positions
-   match Chrome's single full-page screenshot behavior.
+3. Test a page with fixed and sticky elements. Confirm no repeated viewport
+   content appears in the PNG, fixed overlays are absent, and the live page's
+   original styles return after capture.
 4. Test a very long page. A Chrome screenshot-size failure must show `!`; it
    must not leave the debugger attached or overwrite the clipboard.
 5. Trigger a capture while another debugger is attached, then test tab switching
